@@ -4,15 +4,15 @@
 //  2) finalizeAtmosphereOptics: da quella composizione + temperatura reale + gravità, derivare i
 //     parametri ottici (Rayleigh/Mie) usati dallo shader di scattering — niente colori scelti a mano.
 const MIX = { terran: { N2: .78, O2: .21, Ar: .01 }, ocean: { N2: .75, O2: .15, H2O: .08, CO2: .02 }, desert: { CO2: .7, N2: .27, Ar: .03 },
-  rocky: { CO2: .5, N2: .45, Ar: .05 }, icy: { N2: .9, CH4: .1 }, volcanic: { CO2: .8, SO2: .15, N2: .05 }, gas: { H2: .85, He: .14, CH4: .01 } };
-const BASE_P = { terran: 1, ocean: 1.3, desert: .15, rocky: .02, icy: .1, volcanic: 40, gas: 1000 }; // atm, prima di gravità/temperatura
+  rocky: { CO2: .5, N2: .45, Ar: .05 }, icy: { N2: .9, CH4: .1 }, volcanic: { CO2: .8, SO2: .15, N2: .05 }, metal: { CO2: .55, N2: .35, Ar: .1 }, gas: { H2: .85, He: .14, CH4: .01 } };
+const BASE_P = { terran: 1, ocean: 1.3, desert: .15, rocky: .02, icy: .1, volcanic: 40, metal: .01, gas: 1000 }; // atm, prima di gravità/temperatura
 // Massa molare (g/mol) e polarizzabilità relativa all'N2 (lo scattering di Rayleigh è ∝ polarizzabilità²
 // e quasi indipendente dalla lunghezza d'onda del gas in sé: il cielo è blu per il fattore 1/λ⁴, non
 // per la composizione — è la composizione a decidere QUANTA luce si diffonde e quanto pulviscolo/foschia
 // (Mie) si accumula, non il colore di base del cielo).
 const MOLAR = { N2: 28, O2: 32, Ar: 40, CO2: 44, CH4: 16, H2: 2, He: 4, H2O: 18, SO2: 64 };
 const POLAR = { N2: 1, O2: .91, Ar: .94, CO2: 1.67, CH4: 1.49, H2: .46, He: .12, H2O: .83, SO2: 2.14 };
-const HAZE_BY_TYPE = { volcanic: .32, desert: .22, gas: .55, terran: .06, ocean: .09, icy: -.08, rocky: 0 };
+const HAZE_BY_TYPE = { volcanic: .32, metal: .05, desert: .22, gas: .55, terran: .06, ocean: .09, icy: -.08, rocky: 0 };
 // Spessore ottico Rayleigh verticale dell'aria terrestre al livello del mare a λ = 680/550/440 nm
 // (∝ 1/λ⁴: il blu si diffonde ~6 volte più del rosso). Riferimento fisico da cui si scala ogni pianeta.
 const TAU_R_EARTH = [0.046, 0.108, 0.265];
@@ -22,13 +22,17 @@ const AIR_CROSS = .78 * POLAR.N2 ** 2 + .21 * POLAR.O2 ** 2 + .01 * POLAR.Ar ** 
 // sole sfuma subito verso il nero; una colonna più densa lo riempie del colore dell'atmosfera.
 const ATMO_DENSITY = 1.9;
 
-export function generateAtmosphere(rng, type, gRatio, Teq) {
-  let p = BASE_P[type] * (0.4 + 1.6 * rng()) * gRatio ** 1.5; // più gravità -> trattiene meglio l'atmosfera
-  if (type !== 'gas' && type !== 'volcanic' && (gRatio < 0.12 || Teq > 380)) p *= 0.05; // fuga termica/gravitazionale
+// vesc: velocità di fuga reale (km/s). Fuga di Jeans: un gas resta legato se la velocità di fuga supera di
+// molte volte la velocità termica delle sue molecole nell'esosfera (~4× la temperatura superficiale):
+// corpi piccoli e caldi perdono l'atmosfera, grandi e freddi la trattengono.
+export function generateAtmosphere(rng, type, gRatio, Teq, vesc = 11.2 * Math.sqrt(gRatio)) {
   const mix = {}; let sum = 0;
   for (const [g, f] of Object.entries(MIX[type])) { mix[g] = f * (0.6 + 0.8 * rng()); sum += mix[g]; }
   let meanMolar = 0, crossSection = 0;
   for (const g in mix) { mix[g] /= sum; meanMolar += mix[g] * MOLAR[g]; crossSection += mix[g] * POLAR[g] ** 2; }
+  const vth = 0.129 * Math.sqrt(4 * Teq / meanMolar), x = vesc / vth; // km/s
+  const retention = type === 'gas' ? 1 : x >= 10 ? 1 : x <= 4.5 ? 0.002 : 0.002 + 0.998 * ((x - 4.5) / 5.5) ** 3;
+  const p = BASE_P[type] * (0.4 + 1.6 * rng()) * gRatio ** 1.5 * retention; // più gravità → colonna più pesante
   const { CO2 = 0, CH4 = 0, H2O = 0, O2 = 0, SO2 = 0 } = mix;
   return {
     pressure: p, composition: mix, meanMolar, crossSection, hazeBase: HAZE_BY_TYPE[type] ?? 0,

@@ -18,7 +18,7 @@ export class Game {
     this.seed = Number(new URLSearchParams(location.search).get('seed')) || 1; // ?seed=123
     this.system = new SolarSystem(generateSystem(this.seed));
     this.ship = new Spaceship(); this.astro = new Astronaut();
-    this.input = new Controller(this.time); this.input.wantsLock = () => this.mode === 'foot';
+    this.input = new Controller(this.time); this.input.wantsLock = () => true; // mouse catturato in entrambe le modalità (nave e a piedi)
     this.view = new SpaceScene(this.system);
     this.hud = new HUD(document.getElementById('hud'));
     this.marker = new ShipMarker();
@@ -35,7 +35,7 @@ export class Game {
       if (!this.ship.landed) return;
       this.astro.placeNear(this.ship); this.mode = 'foot';
     } else if (this.astro.position.distanceTo(this.ship.position) < 10) {
-      this.mode = 'ship'; document.exitPointerLock();
+      this.mode = 'ship';
     }
   }
   loop(now) {
@@ -43,7 +43,8 @@ export class Game {
     const inp = this.input.read(), foot = this.mode === 'foot';
     if (this.input.took('KeyE')) this.toggleMode();
     if (this.input.took('KeyP')) this.view.toggleOrbits();
-    if (foot) this.astro.turn(inp.look.x, inp.look.y);
+    if (this.input.took('KeyI')) this.hud.details = !this.hud.details;
+    if (foot) this.astro.turn(inp.look.x, inp.look.y); else this.ship.turn(inp.look.x, inp.look.y);
     const dt = this.time.paused ? 0 : Math.min((now - this.last) / 1000, 0.05) * this.time.scale;
     this.last = now;
     const n = Math.max(1, Math.ceil(dt / 0.02)), h = dt / n;

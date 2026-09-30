@@ -22,7 +22,7 @@ export class Controller {
     const k = c => this.keys.has(c) ? 1 : 0, o = this.out;
     const up = Math.max(k('ShiftLeft'), k('ShiftRight'), k('KeyF')), down = Math.max(k('ControlLeft'), k('ControlRight'));
     o.move.set(k('KeyD') - k('KeyA'), up - down, k('KeyS') - k('KeyW')); // Shift/F su, Ctrl giù
-    o.rot.set(k('ArrowUp') - k('ArrowDown'), k('ArrowLeft') - k('ArrowRight'), k('KeyQ') - k('KeyE'));
+    o.rot.set(0, 0, k('KeyQ') - k('KeyE')); // beccheggio e imbardata della nave arrivano dal mouse (look), qui solo il rollio
     o.look.set(this.mx, this.my, 0); this.mx = this.my = 0;
     o.match = !!k('Space'); // nave: azzera la velocità relativa
     o.jump = !!k('Space'); // a piedi: salto

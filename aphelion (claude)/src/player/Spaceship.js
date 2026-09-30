@@ -1,6 +1,6 @@
 import { Vector3, Quaternion, Euler } from 'three';
 import { gravityAt, dominantBody } from '../physics/Gravity.js';
-const _q = new Quaternion(), _e = new Euler(), _r = new Vector3(), _s = new Vector3(), _v = new Vector3(), _t = new Vector3();
+const X = new Vector3(1, 0, 0), Y = new Vector3(0, 1, 0), _q = new Quaternion(), _e = new Euler(), _r = new Vector3(), _s = new Vector3(), _v = new Vector3(), _t = new Vector3();
 
 export class Spaceship {
   constructor() {
@@ -14,6 +14,10 @@ export class Spaceship {
     this.position.copy(body.position).add(new Vector3(0, 0, r));
     this.velocity.copy(body.velocity).add(new Vector3(body.circularVelocity(r), 0, 0));
     this.quaternion.setFromEuler(_e.set(0, Math.PI, 0)); // prua verso il pianeta
+  }
+  // Mouse: stessa sensibilità della camera a piedi. Imbardata e beccheggio diretti nel frame della nave.
+  turn(dx, dy) {
+    this.quaternion.multiply(_q.setFromAxisAngle(Y, -dx * 0.0025)).multiply(_q.setFromAxisAngle(X, -dy * 0.0025)).normalize();
   }
   step(dt, inp, sys) {
     this.angVel.lerp(_t.copy(inp.rot).multiplyScalar(1.2), 1 - Math.exp(-6 * dt));

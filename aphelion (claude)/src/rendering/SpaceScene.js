@@ -7,20 +7,30 @@ import { ShipModel, ENGINE_EXHAUSTS } from './ShipModel.js';
 import { ShipTrail } from './ShipTrail.js';
 import { applyEclipse, updateEclipseUniforms } from './EclipseShader.js';
 import { sunVisibility } from '../astronomy/Eclipse.js';
+import { makeRng } from '../generation/Random.js';
+import { hashSeed } from '../generation/TerrainGenerator.js';
 // Radianza del disco rispetto al bianco a schermo. La scena è in HDR: il passaggio atmosferico la moltiplica
 // per la trasmittanza per canale, quindi il disco resta saturo (bianco) finché T > 1/40 e al tramonto
 // passa a giallo → arancio → rosso man mano che blu e verde vengono estinti.
 const SUN_DISK_RANGE = 40;
 
-function texture(color) { // texture procedurale semplice per i giganti gassosi (nessun terreno): rende visibile la rotazione
-  const c = document.createElement('canvas'); c.width = 256; c.height = 128;
-  const g = c.getContext('2d');
-  g.fillStyle = '#' + new THREE.Color(color).getHexString(); g.fillRect(0, 0, 256, 128);
-  for (let i = 0; i < 120; i++) {
-    g.fillStyle = `rgba(${Math.random() < .5 ? '255,255,255' : '0,0,0'},${Math.random() * .18})`;
-    g.beginPath(); g.arc(Math.random() * 256, Math.random() * 128, 4 + Math.random() * 18, 0, 7); g.fill();
+// Texture dei giganti gassosi (nessun terreno), deterministica dal seed del corpo: bande di latitudine con
+// bordi turbolenti e una grande tempesta ovale. Rende visibile la rotazione (e il suo verso).
+function gasTexture(body, seed, w = 512, h = 256) {
+  const rng = makeRng(hashSeed(seed, body.id)), c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d'), img = g.createImageData(w, h), base = new THREE.Color(body.color).convertLinearToSRGB();
+  const waves = Array.from({ length: 5 }, (_, i) => [3 + i * 2.7 + rng() * 3, rng() * 6.3, .5 ** i]);
+  const [sx, sy, sr] = [rng() * w, h * (.3 + .4 * rng()), 8 + rng() * 14];
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    const lon = i / w * 6.283, turb = .04 * Math.sin(lon * 3 + j * .2) * Math.sin(lon * 7 - j * .13);
+    let v = 0; for (const [fq, ph, a] of waves) v += a * Math.sin((j / h + turb) * fq * 3.1416 + ph);
+    const dx = Math.min(Math.abs(i - sx), w - Math.abs(i - sx)) / (sr * 1.8), dy = (j - sy) / sr, spot = Math.exp(-(dx * dx + dy * dy) * 2);
+    const l = 1 + .16 * v - .25 * spot, k = (j * w + i) * 4;
+    img.data[k] = Math.min(255, 255 * base.r * l * (1 + .3 * spot)); img.data[k + 1] = Math.min(255, 255 * base.g * l); img.data[k + 2] = Math.min(255, 255 * base.b * l); img.data[k + 3] = 255;
   }
-  return new THREE.CanvasTexture(c);
+  g.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 export class SpaceScene {
@@ -39,7 +49,7 @@ export class SpaceScene {
     this.orbitLines = []; this.atmoBodies = []; this.system = system;
     this.occluders = system.bodies.filter(b => b.parent); // ordine = indice usato dallo shader delle eclissi
     this.meshes = system.bodies.map(b => {
-      const map = b.terrain ? surfaceTexture(b) : texture(b.color);
+      const map = b.terrain ? surfaceTexture(b) : b.parent ? gasTexture(b, system.data.seed) : null;
       // la stella è in HDR: il colore oltre 1 viene poi attenuato per canale dall'atmosfera
       const mat = b.parent ? applyEclipse(new THREE.MeshStandardMaterial({ map, roughness: 1 }), this.occluders.indexOf(b))
         : new THREE.MeshBasicMaterial({ color: new THREE.Color(b.color).multiplyScalar(SUN_DISK_RANGE) });

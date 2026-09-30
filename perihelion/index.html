@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PERIHELION — Esplorazione Planetaria</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Michroma&family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body data-mode="INTRO">
+
+<div id="app"></div>
+<div id="vignette"></div>
+<div id="heatfx"></div>
+<div id="scanlines"></div>
+
+<!-- ══════════ HUD ══════════ -->
+<div id="hud" hidden>
+  <div id="hud-tl" class="panel bracket">
+    <div id="modeChip" class="chip">VOLO</div>
+    <div class="row"><label>VEL</label><span id="spdVal" class="big">0</span><em>m/s</em></div>
+    <div class="row"><label>ALT</label><span id="altVal" class="big">—</span><em>m</em></div>
+    <div class="bar"><label>MANETTA</label><div class="track"><i id="thrFill"></i></div></div>
+    <div class="bar"><label>CARBURANTE</label><div class="track fuel"><i id="fuelFill"></i></div></div>
+    <div class="bar"><label>SCAFO</label><div class="track hull"><i id="hullFill"></i></div></div>
+    <div class="bar" id="o2Row" hidden><label>O₂</label><div class="track o2"><i id="o2Fill"></i></div></div>
+  </div>
+
+  <div id="hud-tr" class="panel bracket right">
+    <div class="row time"><label>TEMPO</label><span id="warpVal">×1</span></div>
+    <div class="row"><span id="dateVal" class="dim">—</span></div>
+    <div class="row"><label>DOMINANTE</label><span id="domVal">—</span></div>
+    <div class="row"><label>NAV</label><span id="navVal">—</span></div>
+  </div>
+
+  <div id="warnings"></div>
+  <div id="prompt" class="panel"></div>
+  <div id="notifications"></div>
+</div>
+
+<div id="reticle" hidden><span class="c c1"></span><span class="c c2"></span><span class="c c3"></span><span class="c c4"></span><div id="scanRing"></div></div>
+<div id="navMarker" hidden><span class="dm">◆</span><span id="navDist"></span></div>
+
+<!-- ══════════ MAPPA ══════════ -->
+<section id="mapOverlay" hidden>
+  <header class="ov-head"><h2>MAPPA DEL SISTEMA</h2><span class="dim">rotella = zoom · trascina = pan · clic = selezione · <b>M</b> chiudi</span></header>
+  <canvas id="mapCanvas"></canvas>
+  <aside id="mapInfo" class="panel bracket"></aside>
+</section>
+
+<!-- ══════════ ARCHIVIO ══════════ -->
+<section id="encyclopedia" hidden>
+  <header class="ov-head"><h2>ARCHIVIO SCIENTIFICO</h2><span class="dim"><b>J</b> chiudi</span></header>
+  <div id="encBody">
+    <nav id="encList"></nav>
+    <article id="encDetail"></article>
+  </div>
+</section>
+
+<!-- ══════════ DEBUG ══════════ -->
+<section id="debugPanel" class="panel" hidden></section>
+
+<!-- ══════════ AIUTO / PAUSA / INTRO ══════════ -->
+<section id="helpOverlay" hidden><div class="modal panel bracket" id="helpBox"></div></section>
+<section id="pauseOverlay" hidden><div class="modal panel bracket">
+  <h2 class="disp">SIMULAZIONE IN PAUSA</h2>
+  <p class="dim">Clic per riprendere il controllo · <b>M</b> mappa · <b>J</b> archivio · <b>F3</b> diagnostica</p>
+</div></section>
+
+<section id="intro">
+  <div id="introBox">
+    <p class="kicker">PROTOCOLLO DI RICOGNIZIONE // SETTORE K-9</p>
+    <h1 class="disp">PERIHELION</h1>
+    <p class="tag">Un sistema stellare già esisteva prima del tuo arrivo. Osservalo, scansiona, atterra, capisci.</p>
+    <div id="controlsGrid">
+      <div><b>Mouse</b><span>assetto nave / sguardo</span></div>
+      <div><b>W · S</b><span>propulsione avv/ind</span></div>
+      <div><b>A · D · R · F</b><span>propulsori laterali/verticali</span></div>
+      <div><b>SHIFT</b><span>potenziamento</span></div>
+      <div><b>X</b><span>frenata retrograda</span></div>
+      <div><b>SPAZIO</b><span>atterraggio / salto</span></div>
+      <div><b>E</b><span>esci · rientra nella nave</span></div>
+      <div><b>F (tieni)</b><span>scansione bersaglio</span></div>
+      <div><b>M · J</b><span>mappa · archivio</span></div>
+      <div><b>P · , · .</b><span>pausa · warp temporale</span></div>
+    </div>
+    <div id="seedRow">
+      <label>SEED</label><input id="seedInput" spellcheck="false">
+      <button id="btnNewSeed" class="btn ghost">CASUALE</button>
+    </div>
+    <button id="btnStart" class="btn primary">INIZIA ESPLORAZIONE</button>
+    <p class="hint">Serve un server statico (ES modules). Audio <b>U</b> · Aiuto <b>H</b></p>
+  </div>
+</section>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

@@ -35,7 +35,7 @@ export class Astronaut {
       _v.subVectors(this.velocity, sv); const vn = _v.dot(_up);
       _v.addScaledVector(_up, -vn).lerp(_w, 1 - Math.exp(-10 * dt)).addScaledVector(_up, vn);
       this.velocity.copy(sv).add(_v);
-      if (inp.move.y > 0) this.velocity.addScaledVector(_up, Math.sqrt(2 * dom.surfaceGravity * 1.5));
+      if (inp.jump) this.velocity.addScaledVector(_up, Math.sqrt(2 * dom.surfaceGravity * 1.5));
     }
     this.velocity.addScaledVector(this.grav, dt);
     this.position.addScaledVector(this.velocity, dt);

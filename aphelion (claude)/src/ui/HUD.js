@@ -21,7 +21,7 @@ Vel. relativa: ${relSpeed}   v circolare: ${f(d.circularVelocity(r))}   v fuga (
 g locale: ${f(o.grav.length(), 2)}${mode === 'ship' ? `   carburante: ${f(ship.fuel, 0)}%` : ''}${sun}${info}
 Stella ${system.star.name}: ${f(system.star.data.temperature, 0)} K   ${f(system.star.data.luminosity, 2)} L☉
 
-${mode === 'ship' ? 'WASD/Spazio/Shift spinta · Frecce+Q/E rotazione · F azzera vel. · E scendi (atterrato)'
+${mode === 'ship' ? 'WASD spinta · Shift/F su · Ctrl giù · Frecce+Q/E rotazione · Spazio azzera vel. · E scendi (atterrato)'
   : 'WASD muovi · Spazio salta · clic+mouse guarda · E risali (vicino alla nave)'}
 [ ] tempo ×½/×2 · 0 pausa · P orbite`;
   }

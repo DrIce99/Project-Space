@@ -7,8 +7,9 @@ import { Astronaut } from '../player/Astronaut.js';
 import { Controller } from '../player/Controller.js';
 import { SpaceScene } from '../rendering/SpaceScene.js';
 import { HUD } from '../ui/HUD.js';
+import { ShipMarker } from '../ui/ShipMarker.js';
 
-const IDLE = { move: new Vector3(), rot: new Vector3(), match: false };
+const IDLE = { move: new Vector3(), rot: new Vector3(), match: false, jump: false };
 
 // Simulazione (SolarSystem, Spaceship, Astronaut) separata da rendering, input e UI.
 export class Game {
@@ -20,6 +21,7 @@ export class Game {
     this.input = new Controller(this.time); this.input.wantsLock = () => this.mode === 'foot';
     this.view = new SpaceScene(this.system);
     this.hud = new HUD(document.getElementById('hud'));
+    this.marker = new ShipMarker();
     this.camPos = new Vector3(); this.camQuat = new Quaternion();
     this.system.update(0);
     const worlds = this.system.bodies.filter(b => b.parent === this.system.star && b.data.type !== 'gas');
@@ -54,7 +56,8 @@ export class Game {
       this.camQuat.copy(this.ship.quaternion);
       this.camPos.set(0, 3, 10).applyQuaternion(this.ship.quaternion).add(this.ship.position);
     } else this.astro.pose(this.camPos, this.camQuat);
-    this.view.render(this.ship, this.camPos, this.camQuat);
+    this.view.render(this.ship, this.camPos, this.camQuat, this.time.t);
+    this.marker.update(this.view.camera, this.ship.position, this.mode === 'foot');
     this.hud.update(this);
   }
 }

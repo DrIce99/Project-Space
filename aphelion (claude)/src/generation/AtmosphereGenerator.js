@@ -20,7 +20,7 @@ const AIR_CROSS = .78 * POLAR.N2 ** 2 + .21 * POLAR.O2 ** 2 + .01 * POLAR.Ar ** 
 // Densità atmosferica globale: moltiplica la colonna di gas di OGNI pianeta (i rapporti fisici tra un
 // pianeta e l'altro restano invariati). Nella scala del gioco, con la colonna reale, il cielo lontano dal
 // sole sfuma subito verso il nero; una colonna più densa lo riempie del colore dell'atmosfera.
-const ATMO_DENSITY = 1.6;
+const ATMO_DENSITY = 1.9;
 
 export function generateAtmosphere(rng, type, gRatio, Teq) {
   let p = BASE_P[type] * (0.4 + 1.6 * rng()) * gRatio ** 1.5; // più gravità -> trattiene meglio l'atmosfera

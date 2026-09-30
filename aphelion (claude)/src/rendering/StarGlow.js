@@ -33,7 +33,6 @@ export function createStarGlow(color, radius, luminosity) {
     blending: THREE.AdditiveBlending, opacity: intensity, sizeAttenuation: true
   });
   const sprite = new THREE.Sprite(mat);
-  sprite.userData.baseOpacity = intensity; // riscalata ogni frame dalla trasmittanza atmosferica
   const scale = radius * (5 + 2.5 * THREE.MathUtils.clamp(luminosity, 0.1, 4) ** 0.5);
   sprite.scale.set(scale, scale, 1);
   return sprite;

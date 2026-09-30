@@ -6,6 +6,7 @@ export class Spaceship {
   constructor() {
     this.position = new Vector3(); this.velocity = new Vector3(); this.quaternion = new Quaternion();
     this.angVel = new Vector3(); this.grav = new Vector3(); this.acc = new Vector3();
+    this.throttle = new Vector3(); // comando di spinta corrente (spazio locale), letto dal rendering per le fiamme
     this.fuel = 100; this.thrust = 25; this.landed = false; this.dominant = null;
   }
   spawnInOrbit(body, alt) {
@@ -20,6 +21,7 @@ export class Spaceship {
     this.dominant = dominantBody(this.position, sys.bodies);
     gravityAt(this.position, sys.bodies, this.acc);
     this.grav.copy(this.acc);
+    this.throttle.copy(this.fuel > 0 ? inp.move : _t.set(0, 0, 0));
     if (this.fuel > 0 && inp.move.lengthSq()) {
       this.acc.addScaledVector(_v.copy(inp.move).normalize().applyQuaternion(this.quaternion), this.thrust);
       this.fuel -= dt * 0.15;

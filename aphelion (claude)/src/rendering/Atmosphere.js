@@ -49,8 +49,7 @@ vec3 scatterRay(vec3 origin, vec3 dir, float maxDist, vec3 center, float pRadius
 
   float segLen = (end - start) / float(PRIMARY_STEPS);
   float t = start + segLen * 0.5;
-  vec3 sumR = vec3(0.0), sumM = vec3(0.0);
-  float odR = 0.0, odM = 0.0;
+  vec3 L = vec3(0.0), T = vec3(1.0);
   float mu = dot(dir, sunDir);
   float g2 = g * g;
   float phaseR = 0.0596831 * (1.0 + mu * mu);
@@ -59,9 +58,9 @@ vec3 scatterRay(vec3 origin, vec3 dir, float maxDist, vec3 center, float pRadius
   for (int i = 0; i < PRIMARY_STEPS; i++) {
     vec3 pos = origin + dir * t;
     float h = max(length(pos - center) - pRadius, 0.0);
-    float dR = density(h, hR, top) * segLen;
-    float dM = density(h, hM, top) * segLen;
-    odR += dR; odM += dM;
+    float dR = density(h, hR, top), dM = density(h, hM, top); // densità relative nel punto (per unità di lunghezza)
+    vec3 ext = betaR * dR + vec3(betaM * 1.11 * dM);             // coefficiente di estinzione
+    vec3 S = vec3(0.0);                                          // luce diffusa verso l'occhio per unità di lunghezza
     if (!inPlanetShadow(pos, sunDir, center, pRadius)) {
       vec2 sunAtmo = raySphere(pos, sunDir, center, aRadius);
       float sLen = max(sunAtmo.y, 0.0) / float(LIGHT_STEPS);
@@ -72,14 +71,23 @@ vec3 scatterRay(vec3 origin, vec3 dir, float maxDist, vec3 center, float pRadius
         sOdM += density(sh, hM, top) * sLen;
         st += sLen;
       }
-      vec3 atten = exp(-(betaR * (odR + sOdR) + vec3(betaM * 1.11 * (odM + sOdM))));
-      sumR += atten * dR;
-      sumM += atten * dM;
+      vec3 tauSun = betaR * sOdR + vec3(betaM * 1.11 * sOdM), sunT = exp(-tauSun);
+      S += sunT * (betaR * dR * phaseR + betaM * dM * mieColor * phaseM); // singolo scattering
+      // Scattering multiplo (approssimazione a due flussi per scattering conservativo): in un'atmosfera otticamente
+      // spessa la luce non arriva in linea retta (exp(-τ) ≈ 0) ma per diffusione, con trasmissione ~1/(1 + ¾τ(1-g)).
+      // Il di più rispetto alla luce diretta diventa una sorgente isotropa: senza, i cieli densi risultano neri.
+      vec3 tauDiff = betaR * sOdR + vec3(betaM * 1.11 * sOdM * (1.0 - g));
+      S += max(1.0 / (1.0 + 0.75 * tauDiff) - sunT, 0.0) * (betaR * dR + betaM * dM * mieColor) * 0.0795775;
     }
+    // Integrazione a conservazione d'energia sul segmento (sorgente costante, estinzione esponenziale): resta
+    // corretta anche quando un solo passo è otticamente opaco, dove la somma di Riemann darebbe un cielo nero.
+    vec3 Ts = exp(-ext * segLen);
+    L += T * S * (1.0 - Ts) / max(ext, vec3(1e-9));
+    T *= Ts;
     t += segLen;
   }
-  trans = exp(-(betaR * odR + vec3(betaM * 1.11 * odM))); // trasmittanza per canale lungo il raggio di vista
-  return sunColor * (sumR * betaR * phaseR + sumM * betaM * mieColor * phaseM); // singolo scattering
+  trans = T; // trasmittanza per canale lungo il raggio di vista
+  return sunColor * L;
 }
 `;
 
@@ -172,7 +180,9 @@ export class AtmospherePass {
       u.atB.value[i].set(A.rayleighCoeff[0], A.rayleighCoeff[1], A.rayleighCoeff[2], b.atmoRadius);
       u.atC.value[i].set(A.mieColor[0], A.mieColor[1], A.mieColor[2], A.mieCoeff);
       u.atSun.value[i] = sunAt(b);
-      u.atD.value[i].set(A.scaleHeightR, A.scaleHeightM, A.mieG, THREE.MathUtils.lerp(EXPOSURE_GROUND, EXPOSURE_SPACE, k));
+      // adattamento dell'occhio sotto atmosfere spesse (arriva solo luce diffusa, più debole): esposizione più alta al suolo
+      const tau = (A.tauR[0] + A.tauR[1] + A.tauR[2]) / 3 + A.tauM * (1 - A.mieG), adapt = Math.min(8, Math.sqrt(1 + 0.75 * tau));
+      u.atD.value[i].set(A.scaleHeightR, A.scaleHeightM, A.mieG, THREE.MathUtils.lerp(EXPOSURE_GROUND * adapt, EXPOSURE_SPACE, k));
     }
     u.count.value = n;
     r.render(this.quadScene, this.quadCam);

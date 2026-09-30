@@ -61,8 +61,8 @@ Vel. relativa: ${relSpeed}   v circolare: ${f(d.circularVelocity(r))}   v fuga (
 g locale: ${f(o.grav.length(), 2)}${mode === 'ship' ? `   carburante: ${f(ship.fuel, 0)}%` : `   jetpack: ${f(astro.jetFuel, 0)}%${astro.jetting ? ' [SPINTA]' : ''}`}${sun}${info}
 Stella ${system.star.name}: ${f(system.star.data.temperature, 0)} K   ${f(system.star.data.luminosity, 2)} L☉
 
-${mode === 'ship' ? 'clic+mouse orienta · Q/E rollio · WASD spinta · Shift/F su · Ctrl giù · Spazio azzera vel. · E scendi (atterrato)'
-  : 'clic+mouse guarda · WASD muovi (in volo: jetpack) · Spazio salta · Shift/F jetpack su · Ctrl giù · X stabilizza · E risali (vicino alla nave)'}
+${mode === 'ship' ? 'clic+mouse orienta · Q/E rollio · WASD spinta · Shift/F su · Ctrl giù · Spazio azzera vel. · Z scendi (atterrato)'
+  : 'clic+mouse guarda · WASD muovi (in volo: jetpack) · Spazio salta · Shift/F jetpack su · Ctrl giù · X stabilizza · Z risali (vicino alla nave)'}
 [ ] tempo ×½/×2 · 0 pausa · P orbite · I scheda corpo`;
   }
 }

@@ -26,7 +26,7 @@ export function generateStar(rng) {
   const mass = Math.max(0.35, Math.min(2.8, Rsun * Math.sqrt(T / 5778)));
   return {
     id: 'star', name: 'Helia', temperature: T, luminosity, massRatio: mass,
-    radius: 340 + 130 * Math.min(1.6, Rsun), mu: 4e7 * mass,
+    radius: 340 + 130 * Math.min(1.6, Rsun), mu: 1e7 * mass, // gravità stellare di gioco: orbite planetarie lente (anni di minuti/ore di gioco)
     color: new Color(...blackbodyRGB(T)).getHex()
   };
 }

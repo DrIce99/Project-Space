@@ -26,7 +26,7 @@ export function computeRelative(player, target) {
   return { distance, closingSpeed, local: { x: _local.x, y: _local.y, z: _local.z } };
 }
 
-const AU = 4000; // stessa unità-per-AU usata dal generatore del sistema, per coerenza interna
+import { AU } from '../generation/SystemGenerator.js'; // stessa unità-per-AU del generatore del sistema
 export function formatDistance(u) {
   if (u < 1000) return `${u.toFixed(u < 100 ? 1 : 0)} m`;
   if (u < AU * 0.75) return `${(u / 1000).toFixed(2)} km`;

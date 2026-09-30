@@ -41,7 +41,7 @@ export class Game {
   loop(now) {
     requestAnimationFrame(this.loop);
     const inp = this.input.read(), foot = this.mode === 'foot';
-    if (this.input.took('KeyE')) this.toggleMode();
+    if (this.input.took('KeyZ')) this.toggleMode(); // Z: scendi / risali (E è il rollio della nave)
     if (this.input.took('KeyP')) this.view.toggleOrbits();
     if (this.input.took('KeyI')) this.hud.details = !this.hud.details;
     if (foot) this.astro.turn(inp.look.x, inp.look.y); else this.ship.turn(inp.look.x, inp.look.y);

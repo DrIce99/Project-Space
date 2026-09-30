@@ -5,7 +5,7 @@ const BASE = { terran: 0x5a7a4a, ocean: 0x2a5a9a, desert: 0xb88a55, rocky: 0x7d7
 const ICE_GIANT = 0x86b4cc, HOT_JUPITER = 0x8a6448;
 const RELIEF = { terran: .05, ocean: .04, desert: .045, rocky: .05, icy: .035, volcanic: .08, metal: .04 };
 const ALBEDO = { terran: .3, ocean: .12, desert: .3, rocky: .14, icy: .6, volcanic: .12, metal: .1, gas: .34 };
-export const EARTH_R = 50, EARTH_G = 8; // unità di gioco di un pianeta con raggio/gravità terrestri
+export const EARTH_R = 60, EARTH_G = 8; // unità di gioco di un pianeta con raggio/gravità terrestri
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const logU = (rng, a, b) => a * (b / a) ** rng(); // distribuzione log-uniforme: masse e periodi coprono ordini di grandezza
@@ -69,9 +69,9 @@ export function generatePlanet(seed, ctx) {
     case 'gasGiant': M = logU(rng, 25, 3000); f.gas = .8 + .15 * rng(); f.water = (1 - f.gas) * .6; break;
     case 'iceGiant': M = logU(rng, 6, 45); f.gas = .1 + .1 * rng(); f.water = .55 + .2 * rng(); break;
     case 'metal': M = logU(rng, .03, 3); f.iron = .55 + .2 * rng(); f.water = 10 ** (-4 - rng()); break;
-    case 'waterWorld': M = logU(rng, .3, 6); f.iron = .2 + .1 * rng(); f.water = .1 + .3 * rng(); break;
+    case 'waterWorld': M = logU(rng, .3, 10); f.iron = .2 + .1 * rng(); f.water = .1 + .3 * rng(); break;
     case 'icy': M ??= logU(rng, .005, .5); f.iron = .08 + .1 * rng(); f.water = .3 + .3 * rng(); break;
-    default: M ??= logU(rng, .05, 8); f.iron = .2 + .2 * rng(); f.water = cold ? .03 + .1 * rng() : 10 ** (-4 + 2.4 * rng());
+    default: M ??= logU(rng, .05, 12); f.iron = .2 + .2 * rng(); f.water = cold ? .03 + .1 * rng() : 10 ** (-4 + 2.4 * rng());
   }
   const rest = 1 - f.gas - f.water; if (!f.iron) f.iron = rest * .3; f.silicates = Math.max(0, rest - f.iron);
 
@@ -79,8 +79,8 @@ export function generatePlanet(seed, ctx) {
   const giant = f.gas > .05, albedo0 = giant ? ALBEDO.gas : cls === 'icy' ? ALBEDO.icy : .2;
   const Teq0 = 278 * L ** .25 / Math.sqrt(au) * (1 - albedo0) ** .25;
   const R = radiusOf(M, f, Teq0), gG = M / R ** 2, density = 5.51 * M / R ** 3, vesc = 11.19 * Math.sqrt(M / R);
-  // i giganti sono compressi in scala di gioco (√R) per restare esplorabili; i solidi sono in scala reale
-  const radius = Math.max(8, EARTH_R * (giant ? Math.sqrt(R) : R));
+  // i giganti sono compressi in scala di gioco (R^0.7: Giove ≈ 5.4 raggi terrestri) per restare esplorabili; i solidi in scala reale
+  const radius = Math.max(8, EARTH_R * (giant ? R ** 0.7 : R));
 
   // 3) orbita: i giganti hanno orbite quasi circolari, i corpi piccoli più eccentriche; lune quasi circolari
   const retro = kind === 'moon' && rng() < .12; // lune catturate: spesso retrograde e molto inclinate
@@ -142,11 +142,12 @@ export function generatePlanet(seed, ctx) {
   const t = rng();
   if (!giant && rng() < lockChance) { rot.mode = orbit.e > .1 && kind === 'planet' ? 'resonant' : 'locked'; rot.tilt = rng() * .04; }
   else if (kind === 'moon' && M < .004 && rng() < .45) { // piccole lune irregolari: rotazione caotica
-    rot.mode = 'chaotic'; rot.period = logU(rng, 15, 80); rot.precPeriod = rot.period * (1.5 + 2 * rng());
+    rot.mode = 'chaotic'; rot.period = logU(rng, 90, 400); rot.precPeriod = rot.period * (1.5 + 2 * rng());
     rot.precAxis = [rng() - .5, rng() - .5, rng() - .5]; rot.tilt = rng() * 1.2;
   } else {
     rot.tilt = t < .7 ? rng() * .45 : t < .9 ? .45 + rng() * .5 : .95 + rng() * .75;
-    rot.period = giant ? clamp(P / logU(rng, 200, 3000), 12, 60) : clamp(P / logU(rng, 3, 400), 25, 600);
+    // periodi minimi alti: velocità al suolo di pochi u/s, così si può atterrare e il giorno si segue con calma
+    rot.period = giant ? clamp(P / logU(rng, 20, 300), 150, 600) : clamp(P / logU(rng, 1.5, 60), 180, 2400);
     if (!giant && (A.pressure > 30 ? rng() < .5 : rng() < .07)) { rot.dir = -1; if (A.pressure > 30) rot.period *= 3; }
   }
   if (rot.mode === 'free' && rot.dir < 0) traits.push('rotazione retrograda');

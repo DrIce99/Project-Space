@@ -32,7 +32,7 @@ export function createStarGlow(color, radius, luminosity) {
     map: _glowTexture, color: new THREE.Color(color), transparent: true, depthWrite: false,
     blending: THREE.AdditiveBlending, opacity: intensity, sizeAttenuation: true
   });
-  const sprite = new THREE.Sprite(mat);
+  const sprite = new THREE.Sprite(mat); sprite.userData.opacity = intensity;
   const scale = radius * (5 + 2.5 * THREE.MathUtils.clamp(luminosity, 0.1, 4) ** 0.5);
   sprite.scale.set(scale, scale, 1);
   return sprite;

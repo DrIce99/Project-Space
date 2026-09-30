@@ -96,6 +96,7 @@ uniform float logFar;
 uniform int count;
 // per corpo: A = (centro, raggio pianeta), B = (βR, raggio atmosfera), C = (colore Mie, βM), D = (HR, HM, g, esposizione)
 uniform vec4 atA[MAX_ATMO], atB[MAX_ATMO], atC[MAX_ATMO], atD[MAX_ATMO];
+uniform float atSun[MAX_ATMO]; // luce stellare residua per eclissi (1 = piena)
 varying vec2 vUv;
 ${SCATTERING_CORE}
 void main() {
@@ -111,7 +112,7 @@ void main() {
     vec3 c = atA[i].xyz;
     vec3 trans;
     vec3 L = scatterRay(camPos, rd, maxDist, c, atA[i].w, atB[i].w, atB[i].xyz, atC[i].w, atC[i].xyz,
-                        atD[i].x, atD[i].y, atD[i].z, normalize(starPos - c), sunColor, trans);
+                        atD[i].x, atD[i].y, atD[i].z, normalize(starPos - c), sunColor * atSun[i], trans);
     col = col * trans + (1.0 - exp(-L * atD[i].w));
   }
   gl_FragColor = vec4(col, 1.0);
@@ -140,7 +141,8 @@ export class AtmospherePass {
         camPos: { value: new THREE.Vector3() }, camFwd: { value: new THREE.Vector3() },
         starPos: { value: new THREE.Vector3() }, sunColor: { value: new THREE.Color() },
         logFar: { value: 1 }, count: { value: 0 },
-        atA: { value: vec4s() }, atB: { value: vec4s() }, atC: { value: vec4s() }, atD: { value: vec4s() }
+        atA: { value: vec4s() }, atB: { value: vec4s() }, atC: { value: vec4s() }, atD: { value: vec4s() },
+        atSun: { value: new Array(MAX_ATMO).fill(1) }
       },
       vertexShader: VERT, fragmentShader: FRAG, depthTest: false, depthWrite: false
     });
@@ -150,7 +152,8 @@ export class AtmospherePass {
     this._order = []; this._fwd = new THREE.Vector3();
   }
   setSize(w, h) { this.target.setSize(w, h); }
-  render(scene, camera, starPos, starColor) {
+  // sunAt(body): frazione di luce stellare che illumina l'atmosfera di body (eclissi)
+  render(scene, camera, starPos, starColor, sunAt = () => 1) {
     const r = this.renderer, u = this.material.uniforms;
     r.setRenderTarget(this.target); r.render(scene, camera); r.setRenderTarget(null);
     u.invProj.value.copy(camera.projectionMatrixInverse); u.camWorld.value.copy(camera.matrixWorld);
@@ -168,6 +171,7 @@ export class AtmospherePass {
       u.atA.value[i].set(b.position.x, b.position.y, b.position.z, b.radius);
       u.atB.value[i].set(A.rayleighCoeff[0], A.rayleighCoeff[1], A.rayleighCoeff[2], b.atmoRadius);
       u.atC.value[i].set(A.mieColor[0], A.mieColor[1], A.mieColor[2], A.mieCoeff);
+      u.atSun.value[i] = sunAt(b);
       u.atD.value[i].set(A.scaleHeightR, A.scaleHeightM, A.mieG, THREE.MathUtils.lerp(EXPOSURE_GROUND, EXPOSURE_SPACE, k));
     }
     u.count.value = n;

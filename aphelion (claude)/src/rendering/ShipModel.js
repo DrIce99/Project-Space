@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyEclipse } from './EclipseShader.js';
 
 // Modello della nave costruito con primitive (nessun asset esterno). Assi locali: -Z = prua, +Y = alto.
 // Il punto fisico della nave (usato per collisioni e atterraggio, 1.5 unità sopra il suolo) è l'origine
@@ -11,6 +12,7 @@ const hull = new THREE.MeshStandardMaterial({ color: 0xd9dee4, metalness: 0.35, 
 const dark = new THREE.MeshStandardMaterial({ color: 0x2b323c, metalness: 0.5, roughness: 0.5 });
 const accent = new THREE.MeshStandardMaterial({ color: 0xe0782a, metalness: 0.2, roughness: 0.5 });
 const glass = new THREE.MeshStandardMaterial({ color: 0x1d3550, metalness: 0.9, roughness: 0.12, emissive: 0x0a1a2a });
+for (const m of [hull, dark, accent, glass]) applyEclipse(m); // la nave entra nell'ombra dei pianeti (lato notte, eclissi)
 
 // Profilo (raggio, lunghezza) ruotato attorno all'asse: fusoliera affusolata, prua a -Z.
 function fuselage() {

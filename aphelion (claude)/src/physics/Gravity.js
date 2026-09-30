@@ -1,5 +1,7 @@
 import { Vector3 } from 'three';
 const d = new Vector3();
+// Costante gravitazionale in unità di gioco: massa = mu / G. Accelerazione = G·M / r², diretta al centro di massa.
+export const G = 1;
 
 export function gravityAt(pos, bodies, out) {
   out.set(0, 0, 0);

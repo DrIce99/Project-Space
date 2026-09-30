@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { biomeColor } from '../generation/BiomeGenerator.js';
+import { applyEclipse } from '../rendering/EclipseShader.js';
 // Cube-sphere con quadtree: ogni faccia si suddivide in base alla distanza della camera.
 const F = [[[1,0,0],[0,0,-1],[0,1,0]], [[-1,0,0],[0,0,1],[0,1,0]], [[0,1,0],[1,0,0],[0,0,-1]],
            [[0,-1,0],[1,0,0],[0,0,1]], [[0,0,1],[1,0,0],[0,1,0]], [[0,0,-1],[-1,0,0],[0,1,0]]];
@@ -42,13 +43,13 @@ export function surfaceTexture(body, w = 256, h = 128) {
 }
 
 export class PlanetTerrain {
-  constructor(body) {
+  constructor(body, eclipseIndex = -1) {
     this.body = body; this.group = new THREE.Group(); this.chunks = new Map();
     this.base = new THREE.Color(body.color); this.baseArr = [this.base.r, this.base.g, this.base.b];
-    this.mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+    this.mat = applyEclipse(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }), eclipseIndex);
     // sfera interna: riempie le crepe tra chunk di LOD diverso (niente stitching/skirt per ora)
     this.group.add(new THREE.Mesh(new THREE.SphereGeometry(body.radius - body.terrain.amp * 1.1, 24, 16),
-      new THREE.MeshStandardMaterial({ color: this.base.clone().multiplyScalar(0.4), roughness: 1 })));
+      applyEclipse(new THREE.MeshStandardMaterial({ color: this.base.clone().multiplyScalar(0.4), roughness: 1 }), eclipseIndex)));
   }
   update(cam) { // cam: posizione camera nel frame del corpo
     const want = new Map(), R = this.body.radius;

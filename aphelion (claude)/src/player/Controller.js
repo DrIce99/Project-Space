@@ -15,7 +15,7 @@ export class Controller {
     addEventListener('keyup', e => this.keys.delete(e.code));
     addEventListener('mousemove', e => { if (document.pointerLockElement) { this.mx += e.movementX; this.my += e.movementY; } });
     addEventListener('click', () => { if (this.wantsLock()) document.body.requestPointerLock(); });
-    this.out = { move: new Vector3(), rot: new Vector3(), look: new Vector3(), match: false, jump: false };
+    this.out = { move: new Vector3(), rot: new Vector3(), look: new Vector3(), match: false, jump: false, brake: false };
   }
   took(code) { return this.pressed.delete(code); }
   read() {
@@ -26,6 +26,7 @@ export class Controller {
     o.look.set(this.mx, this.my, 0); this.mx = this.my = 0;
     o.match = !!k('Space'); // nave: azzera la velocità relativa
     o.jump = !!k('Space'); // a piedi: salto
+    o.brake = !!k('KeyX'); // a piedi, in volo: il jetpack azzera la velocità relativa
     return o;
   }
 }

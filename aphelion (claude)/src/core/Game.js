@@ -9,7 +9,7 @@ import { SpaceScene } from '../rendering/SpaceScene.js';
 import { HUD } from '../ui/HUD.js';
 import { ShipMarker } from '../ui/ShipMarker.js';
 
-const IDLE = { move: new Vector3(), rot: new Vector3(), match: false, jump: false };
+const IDLE = { move: new Vector3(), rot: new Vector3(), match: false, jump: false, brake: false };
 
 // Simulazione (SolarSystem, Spaceship, Astronaut) separata da rendering, input e UI.
 export class Game {
@@ -50,7 +50,10 @@ export class Game {
     if (dt > 0) for (let i = 0; i < n; i++) {
       this.time.t += h; this.system.update(this.time.t);
       this.ship.step(h, this.mode === 'ship' ? inp : IDLE, this.system);
-      if (this.mode === 'foot') this.astro.step(h, inp, this.system);
+      if (this.mode === 'foot') {
+        this.astro.step(h, inp, this.system);
+        if (this.astro.position.distanceTo(this.ship.position) < 10) this.astro.refuel(h); // ricarica dalla nave
+      }
     }
     if (this.mode === 'ship') {
       this.camQuat.copy(this.ship.quaternion);

@@ -3,6 +3,15 @@ import { generateAtmosphere, finalizeAtmosphereOptics } from './AtmosphereGenera
 const BASE = { terran: 0x5a7a4a, ocean: 0x2a5a9a, desert: 0xb88a55, rocky: 0x7d766f, icy: 0xcfe0e8, volcanic: 0x4a3028, gas: 0xc8a878 };
 const RELIEF = { terran: .05, ocean: .04, desert: .045, rocky: .05, icy: .035, volcanic: .08 };
 const EARTH_R = 50, EARTH_G = 8; // unità di gioco di un pianeta con raggio/gravità terrestri
+// Composizione di massa (frazioni) per tipo di corpo: approssimazione qualitativa, per HUD e future meccaniche.
+const COMPOSITION = {
+  star: { hydrogen: .73, helium: .25, metals: .02 },
+  gas: { hydrogen: .75, helium: .22, ices: .02, rock: .01 },
+  terran: { iron: .32, silicates: .66, water: .02 }, ocean: { iron: .25, silicates: .6, water: .15 },
+  desert: { iron: .3, silicates: .7 }, rocky: { iron: .3, silicates: .7 },
+  icy: { iron: .1, silicates: .4, ices: .5 }, volcanic: { iron: .35, silicates: .62, sulfur: .03 }
+};
+export const compositionOf = type => ({ ...(COMPOSITION[type] ?? COMPOSITION.rocky) });
 const gauss = (x, m, s) => Math.exp(-(((x - m) / s) ** 2) / 2);
 
 // Habitability continua 0-100 (media geometrica pesata). Per ora scalare sull'intero pianeta.

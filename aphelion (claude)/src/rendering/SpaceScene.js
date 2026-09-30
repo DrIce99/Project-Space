@@ -5,6 +5,8 @@ import { SunLight } from './Lighting.js';
 import { createStarGlow } from './StarGlow.js';
 import { ShipModel, ENGINE_EXHAUSTS } from './ShipModel.js';
 import { ShipTrail } from './ShipTrail.js';
+import { applyEclipse, updateEclipseUniforms } from './EclipseShader.js';
+import { sunVisibility } from '../astronomy/Eclipse.js';
 // Radianza del disco rispetto al bianco a schermo. La scena è in HDR: il passaggio atmosferico la moltiplica
 // per la trasmittanza per canale, quindi il disco resta saturo (bianco) finché T > 1/40 e al tramonto
 // passa a giallo → arancio → rosso man mano che blu e verde vengono estinti.
@@ -34,11 +36,12 @@ export class SpaceScene {
     this.stars = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(sp, 3)),
       new THREE.PointsMaterial({ size: 1.5, sizeAttenuation: false }));
     this.scene.add(this.stars);
-    this.orbitLines = []; this.atmoBodies = [];
+    this.orbitLines = []; this.atmoBodies = []; this.system = system;
+    this.occluders = system.bodies.filter(b => b.parent); // ordine = indice usato dallo shader delle eclissi
     this.meshes = system.bodies.map(b => {
       const map = b.terrain ? surfaceTexture(b) : texture(b.color);
       // la stella è in HDR: il colore oltre 1 viene poi attenuato per canale dall'atmosfera
-      const mat = b.parent ? new THREE.MeshStandardMaterial({ map, roughness: 1 })
+      const mat = b.parent ? applyEclipse(new THREE.MeshStandardMaterial({ map, roughness: 1 }), this.occluders.indexOf(b))
         : new THREE.MeshBasicMaterial({ color: new THREE.Color(b.color).multiplyScalar(SUN_DISK_RANGE) });
       const m = new THREE.Mesh(new THREE.SphereGeometry(b.radius, 48, 32), mat);
       this.scene.add(m);
@@ -49,7 +52,7 @@ export class SpaceScene {
       }
       if (b.atmosphere && b.atmoRadius > b.radius) this.atmoBodies.push(b);
       // Glow come sprite figlio della stella: segue posizione e scala del disco senza post-processing.
-      if (!b.parent) m.add(createStarGlow(b.color, b.radius, b.data.luminosity));
+      if (!b.parent) m.add(this.glow = createStarGlow(b.color, b.radius, b.data.luminosity));
       return { b, m };
     });
     this.atmosphere = new AtmospherePass(this.renderer, this.atmoBodies);
@@ -75,12 +78,15 @@ export class SpaceScene {
       if (!b.terrain) continue;
       const local = m.worldToLocal(this._v.copy(camPos)), near = local.length() < b.radius * 3;
       let tr = this.terrains.get(b.id);
-      if (near) { if (!tr) { tr = new PlanetTerrain(b); m.add(tr.group); this.terrains.set(b.id, tr); } tr.update(local); }
+      if (near) { if (!tr) { tr = new PlanetTerrain(b, this.occluders.indexOf(b)); m.add(tr.group); this.terrains.set(b.id, tr); } tr.update(local); }
       if (tr) tr.group.visible = near;
       m.material.visible = !near; // da vicino: terreno a chunk al posto della sfera
     }
-    const starPos = this.meshes[0].b.position;
+    const star = this.meshes[0].b, starPos = star.position;
     this.sunLight.setPosition(starPos);
+    updateEclipseUniforms(star, this.occluders);
+    // durante un'eclissi dal punto di vista della camera resta visibile solo la corona (alone attenuato)
+    this.glow.material.opacity = this.glow.userData.opacity * (0.3 + 0.7 * sunVisibility(camPos, star, this.system.bodies));
     for (const l of this.orbitLines) l.position.copy(l.userData.parent.position);
     this.ship.group.position.copy(ship.position); this.ship.group.quaternion.copy(ship.quaternion);
     this.ship.update(ship.throttle, dt);
@@ -88,6 +94,11 @@ export class SpaceScene {
     this.camera.position.copy(camPos); this.camera.quaternion.copy(camQuat);
     this.camera.updateMatrixWorld();
     this.stars.position.copy(camPos);
-    this.atmosphere.render(this.scene, this.camera, starPos, this.starColor);
+    // cielo durante un'eclissi: dall'interno dell'atmosfera conta la luce che arriva alla camera; da lontano
+    // l'ombra (piccola rispetto al pianeta) è già visibile sulla superficie, quindi l'atmosfera resta illuminata
+    this.atmosphere.render(this.scene, this.camera, starPos, this.starColor, b => {
+      const k = THREE.MathUtils.smoothstep(camPos.distanceTo(b.position), b.atmoRadius * 1.2, b.atmoRadius * 2.5);
+      return k >= 1 ? 1 : THREE.MathUtils.lerp(sunVisibility(camPos, star, this.system.bodies, b), 1, k);
+    });
   }
 }

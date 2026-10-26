@@ -1,8 +1,12 @@
-import { Vector3 } from 'three';
+import { Vector3, Quaternion } from 'three';
 import { localClimate } from '../astronomy/Climate.js';
 import { sunVisibility } from '../astronomy/Eclipse.js';
 import { AU } from '../generation/SystemGenerator.js';
-const _a = new Vector3(), _b = new Vector3(), DEG = 57.2958;
+import { tierOf, FACTOR_LABELS } from '../systems/HabitabilitySystem.js';
+import { biomeName, vegetationAt } from '../generation/BiomeGenerator.js';
+import { CATEGORY_LABEL } from '../generation/LifeGenerator.js';
+import { activeAt } from '../systems/FaunaSystem.js';
+const _a = new Vector3(), _b = new Vector3(), _c = new Vector3(), _q = new Quaternion(), _env = {}, DEG = 57.2958;
 const ROT = { free: 'libera', locked: 'sincrona (tidally locked)', resonant: 'risonanza 3:2', chaotic: 'caotica (tumbling)' };
 
 // Stagione nell'emisfero di lat: dalla declinazione della stella rispetto all'inclinazione dell'asse, e dal
@@ -28,7 +32,39 @@ Massa ${f(D.mass, D.mass < 1 ? 3 : 1)} M⊕  raggio ${f(D.realRadius ?? 0, 2)} R
 Composizione: ${comp}
 T equilibrio ${f(D.climate.equilibriumTemp, 0)} K  superficie ${f(D.climate.surfaceTemp ?? D.climate.meanTemp, 0)} K  pressione ${f(A.pressure, A.pressure < .01 ? 4 : 2)} atm  albedo ${f(D.albedo ?? 0, 2)}
 Orbita: a ${f(d.orbit.a / (d.parent === d.star ? AU : 1), d.parent === d.star ? 3 : 0)}${d.parent === d.star ? ' UA' : ''}  e ${f(d.orbit.e, 3)}  inc ${f(d.orbit.inc * DEG, 1)}°  periodo ${f(d.period, 0)} s${d.orbit.dir < 0 ? '  retrograda' : ''}
-Rotazione: ${rot}  inclinazione asse ${f(d.tilt * DEG, 1)}°`;
+Rotazione: ${rot}  inclinazione asse ${f(d.tilt * DEG, 1)}°${biosphere(D, f)}`;
+}
+
+const PLURAL = { flora: 'flora', fungi: 'funghi', aquatic: 'organismi acquatici', terrestrial: 'organismi terrestri', flying: 'organismi volanti', extremophile: 'estremofili' };
+
+// Riassunto della biosfera generata
+function biosphere(D, f) {
+  const B = D.biosphere;
+  if (!B) return '';
+  const s = B.stats, count = {};
+  for (const sp of B.species) count[sp.category] = (count[sp.category] ?? 0) + 1;
+  const life = B.species.length ? Object.entries(count).map(([k, n]) => `${n} ${n > 1 ? PLURAL[k] : CATEGORY_LABEL[k]}`).join(', ') : 'nessuna forma di vita';
+  return `\nBiosfera: habitability media ${f(s.mean, 0)}, massima ${f(s.max, 0)} (${tierOf(s.max)}), ${f(100 * s.habitableFraction, 0)}% della superficie ≥ 40`
+    + `\nSpecie (${B.species.length}): ${life}`;
+}
+
+// Direzione del punto o nel frame del corpo d (asse Y = asse di rotazione)
+const localDir = (d, o) => _c.subVectors(o.position, d.position).applyQuaternion(_q.copy(d.quaternion).invert()).normalize();
+
+// Ambiente e vita nel punto in cui si trova il giocatore (env già campionato)
+function localLife(hab, env, c, details, f) {
+  vegetationAt(hab, env);
+  const H = env.habitability;
+  let s = `\nBioma: ${biomeName(hab, env)}   habitability locale ${f(H, 0)} (${tierOf(H)})   T media annua ${f(env.T, 0)} K (${f(env.Tmin, 0)}–${f(env.Tmax, 0)})`;
+  if (details) s += '\n  ' + Object.entries(hab.factors).map(([k, v]) => `${FACTOR_LABELS[k]} ${f(v, 2)}`).join(' · ');
+  const here = hab.species.map(sp => [sp, hab.suitability(sp, env)]).filter(([, v]) => v > 0.25).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  if (here.length) s += '\nVita qui: ' + here.map(([sp]) => {
+    const animal = sp.category === 'terrestrial' || sp.category === 'flying';
+    const state = animal ? (activeAt(sp.activity, Math.sin(c.elevation)) ? ', attivo' : ', a riposo') : '';
+    return `${sp.name} (${CATEGORY_LABEL[sp.category]}${state})`;
+  }).join(', ');
+  if (env.cover > 0.05) s += `\nFotosintesi in questo momento: ${f(100 * c.plants, 0)}%`;
+  return s;
 }
 
 export class HUD {
@@ -41,7 +77,9 @@ export class HUD {
     const D = d.data;
     let sun = '';
     if (d.parent) {
-      const vis = sunVisibility(o.position, system.star, system.bodies, d), c = localClimate(d, o.position, time.t, vis);
+      const vis = sunVisibility(o.position, system.star, system.bodies, d);
+      const env = d.habitat ? d.habitat.sample(localDir(d, o), _env) : null;
+      const c = localClimate(d, o.position, time.t, vis, env?.habitability ?? 0);
       const p = d.parent === system.star ? d : d.parent, span = p.apoapsis - p.periapsis, el = c.elevation * DEG;
       const orb = span > 1 ? `  (${f(100 * (d.starDistance - p.periapsis) / span, 0)}% periastro→afastro)` : '';
       sun = `\nOra locale ${hhmm(c.localTime)}  giorno solare ${dur(c.dayLength)}  Sole ${f(el, 0)}° (${el > 8 ? 'giorno' : el > -8 ? 'alba/tramonto' : 'notte'})${vis < 0.995 && el > -1 ? `   ECLISSI: ${f(100 * (1 - vis), 0)}% del disco coperto` : ''}`
@@ -49,7 +87,7 @@ export class HUD {
       if (D.type !== 'gas') {
         sun += `\nLat ${f(c.lat * DEG, 0)}°  declinazione stella ${f(c.decl * DEG, 1)}°  stagione: ${season(d, c.decl, c.lat)}`
           + `\nT locale ~${f(c.T, 0)} K (giorno ${f(c.Tday, 0)} / notte ${f(c.Tnight, 0)})  luce ${f(100 * c.light, 0)}%  meteo: ${c.weather}${c.wind ? `  vento ${f(c.wind, 0)} m/s` : ''}`
-          + ((D.habitability ?? 0) > 5 ? `\nFlora: crescita ${f(100 * c.plants, 0)}%   fauna: ${c.fauna}` : '');
+          + (env ? localLife(d.habitat, env, c, this.details, f) : '');
       }
     }
     const info = D?.atmosphere ? (this.details ? card(d, f) : '')

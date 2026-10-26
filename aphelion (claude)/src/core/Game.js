@@ -25,7 +25,8 @@ export class Game {
     this.camPos = new Vector3(); this.camQuat = new Quaternion();
     this.system.update(0);
     const worlds = this.system.bodies.filter(b => b.parent === this.system.star && b.data.type !== 'gas');
-    const home = worlds.sort((a, b) => b.data.habitability - a.data.habitability)[0] ?? this.system.bodies[1];
+    const best = b => b.data.biosphere?.stats.max ?? 0; // il luogo più ospitale, non la media su tutta la superficie
+    const home = worlds.sort((a, b) => best(b) - best(a))[0] ?? this.system.bodies[1];
     this.ship.spawnInOrbit(home, 100); // parte in orbita attorno al mondo più abitabile
     this.last = performance.now();
     this.loop = this.loop.bind(this); requestAnimationFrame(this.loop);

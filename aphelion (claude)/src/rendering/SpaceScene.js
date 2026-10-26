@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PlanetTerrain, surfaceTexture } from '../world/PlanetTerrain.js';
+import { PlanetFauna } from '../systems/FaunaSystem.js';
 import { AtmospherePass } from './Atmosphere.js';
 import { SunLight } from './Lighting.js';
 import { createStarGlow } from './StarGlow.js';
@@ -69,7 +70,8 @@ export class SpaceScene {
     this.ship = new ShipModel(); this.scene.add(this.ship.group);
     this.trails = ENGINE_EXHAUSTS.map(p => new ShipTrail(p));
     for (const t of this.trails) this.scene.add(t.mesh);
-    this.terrains = new Map(); this._v = new THREE.Vector3();
+    this.terrains = new Map(); this.fauna = new Map(); this._v = new THREE.Vector3(); this._sun = new THREE.Vector3(); this._qi = new THREE.Quaternion();
+    this.lastT = null;
     this.starColor = new THREE.Color(system.star.color);
     this.lastFrame = performance.now();
     addEventListener('resize', () => {
@@ -83,6 +85,8 @@ export class SpaceScene {
   // t: tempo di simulazione (le scie invecchiano col tempo di gioco, quindi si fermano in pausa)
   render(ship, camPos, camQuat, t) {
     const now = performance.now(), dt = Math.min((now - this.lastFrame) / 1000, 0.1); this.lastFrame = now;
+    const gameDt = this.lastT === null ? 0 : Math.min(Math.max(t - this.lastT, 0), 0.5); this.lastT = t; // la fauna segue il tempo di gioco
+    const star = this.meshes[0].b;
     for (const { b, m } of this.meshes) {
       m.position.copy(b.position); m.quaternion.copy(b.quaternion); m.updateMatrixWorld();
       if (!b.terrain) continue;
@@ -90,9 +94,16 @@ export class SpaceScene {
       let tr = this.terrains.get(b.id);
       if (near) { if (!tr) { tr = new PlanetTerrain(b, this.occluders.indexOf(b)); m.add(tr.group); this.terrains.set(b.id, tr); } tr.update(local); }
       if (tr) tr.group.visible = near;
+      // fauna: solo vicino alla camera (stessa soglia del terreno dettagliato)
+      let fa = this.fauna.get(b.id);
+      if (near && !fa && b.habitat.species.length) { fa = new PlanetFauna(b, this.occluders.indexOf(b)); m.add(fa.group); this.fauna.set(b.id, fa); }
+      if (fa) {
+        fa.group.visible = near;
+        if (near) fa.update(gameDt, t, local, this._sun.subVectors(star.position, b.position).applyQuaternion(this._qi.copy(b.quaternion).invert()).normalize());
+      }
       m.material.visible = !near; // da vicino: terreno a chunk al posto della sfera
     }
-    const star = this.meshes[0].b, starPos = star.position;
+    const starPos = star.position;
     this.sunLight.setPosition(starPos);
     updateEclipseUniforms(star, this.occluders);
     // durante un'eclissi dal punto di vista della camera resta visibile solo la corona (alone attenuato)

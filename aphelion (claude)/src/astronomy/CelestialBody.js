@@ -1,5 +1,6 @@
 import { Vector3, Quaternion, Matrix4 } from 'three';
-import { TerrainGenerator, hashSeed } from '../generation/TerrainGenerator.js';
+import { terrainFor, hashSeed } from '../generation/TerrainGenerator.js';
+import { Habitat } from '../systems/HabitabilitySystem.js';
 import { G } from '../physics/Gravity.js';
 import { compositionOf } from '../generation/PlanetGenerator.js';
 const _o = new Vector3(), _o2 = new Vector3(), _l = new Vector3(), _qi = new Quaternion(), _qa = new Quaternion(), _qb = new Quaternion();
@@ -18,7 +19,8 @@ export class CelestialBody {
     this.moons = []; this.rotation = 0; this.quaternion = new Quaternion();
     this.data = d; this.atmosphere = d.atmosphere ?? null;
     this.atmoRadius = this.atmosphere ? d.radius + this.atmosphere.atmoTop : 0; // raggio esterno del guscio di scattering
-    this.terrain = parent && d.type !== 'gas' ? new TerrainGenerator(hashSeed(seed, d.id), d.radius, { relief: d.relief, coverage: d.waterCoverage }) : null;
+    this.terrain = parent && d.type !== 'gas' ? terrainFor(hashSeed(seed, d.id), d) : null;
+    this.habitat = this.terrain ? new Habitat(d, this.terrain) : null; // ambiente locale, habitability e specie
     if (this.orbit) {
       this.period = TAU * Math.sqrt(this.orbit.a ** 3 / parent.mu); // Kepler
       this.soi = Math.max(this.orbit.a * (this.mu / parent.mu) ** 0.4, this.radius * 3);

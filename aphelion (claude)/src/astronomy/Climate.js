@@ -27,7 +27,8 @@ export function solarRate(body) {
 //  - venti (contrasto termico + forza di Coriolis), meteo, crescita delle piante e attività della fauna.
 // Le stagioni vengono dall'inclinazione dell'asse (declinazione della stella), la distanza orbitale dalla
 // temperatura globale del corpo (body.temperature). light: frazione di disco stellare visibile (eclissi).
-export function localClimate(body, p, t = 0, light = 1) {
+// hab: habitability locale del punto (HabitabilitySystem), limita la crescita delle piante.
+export function localClimate(body, p, t = 0, light = 1, hab = body.data.habitability ?? 0) {
   const star = body.star, D = body.data, axis = body.axis;
   _s.subVectors(star.position, body.position).normalize();
   _u.subVectors(p, body.position).normalize();
@@ -53,7 +54,7 @@ export function localClimate(body, p, t = 0, light = 1) {
   const lightLevel = light * (smooth(Math.sin(elevation), -0.02, 0.25) + (P > 0.01 ? 0.25 * smooth(Math.sin(elevation), -0.2, 0) : 0));
 
   const env = { decl, lat, elevation, dayLength, localTime, insolation: q, T, Tday, Tnight, light: clamp(lightLevel, 0, 1),
-    wind: 0, weather: P < 0.005 ? 'nessuna atmosfera' : '—', plants: 0, fauna: '—', liquidWater: false };
+    wind: 0, weather: P < 0.005 ? 'nessuna atmosfera' : '—', plants: 0, liquidWater: false };
   if (gas || P < 0.005) return env;
 
   // meteo: campo di rumore deterministico nel frame del corpo che deriva nel tempo (fronti che si spostano con la rotazione)
@@ -71,13 +72,10 @@ export function localClimate(body, p, t = 0, light = 1) {
     : cloud > 0.8 ? (humidity > 0.15 ? (T < 273 ? 'neve' : env.wind > 18 ? 'tempesta' : 'pioggia') : env.wind > 12 ? 'tempesta di polvere' : 'foschia')
     : cloud > 0.6 ? 'nuvoloso' : cloud > 0.4 ? 'poco nuvoloso' : 'sereno';
 
-  // biosfera (per la flora/fauna future): fotosintesi = luce × temperatura adatta × acqua liquida
-  if ((D.habitability ?? 0) > 5) {
+  // fotosintesi in questo momento = luce (ora del giorno, nubi) × temperatura adatta × acqua liquida × habitability locale
+  if (hab > 5) {
     const light2 = env.light * (cloud > 0.8 ? 0.5 : 1);
-    env.plants = clamp(light2 * Math.exp(-(((T - 297) / 18) ** 2)) * (env.liquidWater ? 1 : 0.1) * Math.min(1, D.habitability / 40), 0, 1);
-    const comfy = x => x > 255 && x < 318;
-    env.fauna = !comfy(Tday) && comfy(Tnight) ? (env.light < 0.2 ? 'attiva (notturna)' : 'al riparo dal caldo')
-      : !comfy(T) ? 'quiescente' : env.light > 0.3 ? 'attiva (diurna)' : env.light > 0.05 ? 'crepuscolare' : 'a riposo';
+    env.plants = clamp(light2 * Math.exp(-(((T - 297) / 18) ** 2)) * (env.liquidWater ? 1 : 0.1) * Math.min(1, hab / 40), 0, 1);
   }
   return env;
 }

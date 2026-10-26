@@ -9,7 +9,6 @@ export const EARTH_R = 60, EARTH_G = 8; // unità di gioco di un pianeta con rag
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const logU = (rng, a, b) => a * (b / a) ** rng(); // distribuzione log-uniforme: masse e periodi coprono ordini di grandezza
-const gauss = (x, m, s) => Math.exp(-(((x - m) / s) ** 2) / 2);
 
 // Composizione di massa (frazioni) di fallback per dati vecchi senza composizione generata.
 const COMPOSITION = {
@@ -31,14 +30,6 @@ function radiusOf(M, f, Teq) {
   if (f.gas > .5) return 11.2 * (M < 318 ? (M / 318) ** .06 : (M / 318) ** -.04) * (Teq > 900 ? 1.25 : 1);
   if (f.gas > .05) return 3.9 * (M / 17) ** .2;
   return (1.07 - .21 * f.iron) * M ** (1 / 3.7) * (1 + .55 * f.water);
-}
-
-// Habitability continua 0-100 (media geometrica pesata). Per ora scalare sull'intero pianeta.
-function habitability(T, A, cover, g) {
-  const water = cover > 0 ? Math.min(1, 0.1 + cover * 1.5) : 0.03;
-  let h = 100 * gauss(T, 288, 28) ** .35 * gauss(Math.log10(Math.max(A.pressure, 1e-4)), 0, .5) ** .2 * water ** .2
-    * gauss(g, 1, .6) ** .1 * (0.2 + 0.8 * Math.min(1, A.oxygenLevel / 0.15)) ** .15;
-  return h * (1 - 0.7 * A.toxicity);
 }
 
 const LABEL = {
@@ -156,12 +147,13 @@ export function generatePlanet(seed, ctx) {
   const swing = T * .5 * orbit.e + 15 * Math.sin(rot.tilt) + (A.pressure < .01 ? T * .35 : 0);
   const color = cls === 'iceGiant' ? ICE_GIANT : traits.includes('gioviano caldo') ? HOT_JUPITER : BASE[type];
   return {
-    id, name, type, cls: giant ? cls : type, classLabel: giant ? LABEL[cls] : LABEL[type], traits,
+    id, name, kind, type, cls: giant ? cls : type, classLabel: giant ? LABEL[cls] : LABEL[type], traits,
     mass: M, realRadius: R, density, gravityG: gG, escapeVelocity: vesc, radius, gravity: gG * EARTH_G,
     composition: f, albedo, tidalHeating: tidal,
+    flux: L / au ** 2, starTemp: ctx.starTemp ?? 5778, // irraggiamento (Terra = 1) e spettro della stella: luce, UV e pigmenti della vita
     color: new Color(color).offsetHSL((rng() - .5) * .06, 0, (rng() - .5) * .1).getHex(),
     orbit, rotation: rot, atmosphere: A, waterCoverage: cover, relief,
     climate: { equilibriumTemp: Teq, meanTemp: T, surfaceTemp: T, boilingPoint: Tboil, minTemp: T - swing, maxTemp: T + swing },
-    habitability: giant ? 0 : habitability(T, A, liquid ? cover : 0, gG), moons: []
+    habitability: 0, moons: [] // habitability: media sulla superficie, calcolata con la biosfera (LifeGenerator)
   };
 }

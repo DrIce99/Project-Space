@@ -19,6 +19,10 @@ function makeNoise(seed) {
   };
 }
 
+// Terreno di un corpo solido dal suo seed (seed di sistema + id) e dai dati generati: unica fonte, usata sia
+// dalla generazione della biosfera sia dal corpo in gioco, così entrambe vedono la stessa superficie.
+export const terrainFor = (seed, d) => new TerrainGenerator(seed, d.radius, { relief: d.relief, coverage: d.waterCoverage });
+
 // Altezza (in unità) sopra/sotto il raggio nominale, data una direzione unitaria nel frame del corpo.
 export class TerrainGenerator {
   constructor(seed, radius, { relief = 0.05, coverage = 0 } = {}) {

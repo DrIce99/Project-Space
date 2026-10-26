@@ -88,12 +88,17 @@ export class Game {
     localStorage.setItem('ph_seed', seed);
     if (this.system){
       this.scene.remove(this.system.scene);
-      if (this.belt) this.scene.remove(this.belt.inst);
       this.system.scene.traverse(o => { o.geometry?.dispose?.(); o.material?.dispose?.(); });
+      if (this.belt){ this.scene.remove(this.belt.inst); this.belt.inst.dispose(); this.belt = null; }
+      this.scene.remove(this.ship.mesh);
       this.vegetation?.clear();
+      if (this.mode === 'EVA'){ this.eva.deactivate(); this.mode = 'FLIGHT'; }
+      this.navId = null; this._camPos = null;
     }
+    for (const off of this._busOffs ?? []) off();   // niente listener duplicati ad ogni nuovo seed
     const data = generateSystem(seed);
     this.system = new SolarSystem(data);
+    this.system.update(this.time.simTime);          // posizioni reali PRIMA di piazzare la nave
     this.scene.add(this.system.scene);
     buildStarVisual(this.system.star);
     for (const b of this.system.bodies) if (b !== this.system.star) buildBodyVisual(b, this.system.star);
@@ -106,16 +111,21 @@ export class Game {
     this.discovery.discover(this.system.home.id, true);
     this.vegetation = new VegetationSystem(this.scene);
 
-    this.bus.on('ship:landed', b => {
-      this.hud.notify(`Atterraggio su <b>${b.name}</b>. Rifornimento in corso. [E] per uscire.`);
-      this.hud.milestone('land', '◆ PRIMO ATTERRAGGIO — la superficie è reale: camminaci sopra.');
-    });
-    this.bus.on('discovery', ({ id }) => {
-      const b = this.system.get(id);
-      this.audio.chime();
-      if (this.encyclopedia?.visible) this.encyclopedia.renderDetail();
-    });
-    this.bus.on('ship:destroyed', () => this.respawn('Scafo compromesso. Navicella ricostruita in orbita.'));
+    this._busOffs = [
+      this.bus.on('ship:landed', b => {
+        this.hud.notify(`Atterraggio su <b>${b.name}</b>. Rifornimento in corso. [E] per uscire.`);
+        this.hud.milestone('land', '◆ PRIMO ATTERRAGGIO — la superficie è reale: camminaci sopra.');
+      }),
+      this.bus.on('discovery', ({ id }) => {
+        if (this.encyclopedia?.visible) this.encyclopedia.renderDetail();
+        if (id.startsWith('poi:')) return;           // i punti di interesse hanno la loro notifica
+        const b = this.system.get(id);
+        this.audio.chime();
+        this.hud.notify(`◆ Scoperta registrata: <b>${b?.name ?? id}</b>`, 'gold');
+      }),
+      this.bus.on('ship:impact', () => this.audio.blip(140, 0.18, 0.2)),
+      this.bus.on('ship:destroyed', () => this.respawn('Scafo compromesso. Navicella ricostruita in orbita.')),
+    ];
     if (!first) this.hud.notify(`Nuovo sistema generato — seed <b>${seed}</b>`);
     if (this.debug?.visible) this.debug.build();
   }
@@ -123,12 +133,21 @@ export class Game {
   respawn(msg){
     this.ship.hull = SHIP.hullMax; this.ship.fuel = SHIP.fuelMax;
     this.ship.spawnOrbit(this.system.home);
-    if (this.mode === 'EVA'){ this.eva.deactivate(); this.mode = 'FLIGHT'; }
+    this._camPos = null;
+    if (this.mode === 'EVA'){ this.eva.deactivate(); this.vegetation.clear(); this.mode = 'FLIGHT'; }
+    this.eva.o2 = 100;
     this.hud.notify(msg, 'bad');
   }
 
+  // ossigeno finito: l'astronauta viene recuperato dalla nave, che resta dov'è
+  rescueEVA(){
+    this.eva.deactivate(); this.vegetation.clear(); this.mode = 'FLIGHT';
+    this.eva.o2 = 100;
+    this.hud.notify('Ossigeno esaurito. Sei stato riportato a bordo.', 'bad');
+  }
+
   bindUI(){
-    el('btnStart').onclick = () => this.startGame(el('seedInput').value.trim() || el('seedInput').value);
+    el('btnStart').onclick = () => this.startGame(el('seedInput').value.trim());
     el('btnNewSeed').onclick = () => el('seedInput').value = String((Math.random() * 2 ** 31) | 0);
 
     window.addEventListener('keydown', e => {
@@ -176,7 +195,9 @@ export class Game {
   }
 
   startGame(seedInput){
-    if (String(this.system.seed) !== String(seedInput) && seedInput) this.loadSystem(seedInput);
+    if (seedInput && String(this.system.seed) !== String(seedInput)) this.loadSystem(seedInput);
+    else this.ship.spawnOrbit(this.system.home);    // il pianeta si è mosso durante l'intro
+    this._camPos = null;
     el('intro').style.display = 'none';
     document.body.dataset.mode = 'FLIGHT';
     this.mode = 'FLIGHT';
@@ -189,13 +210,15 @@ export class Game {
 
   onLockChange(locked){
     const overlays = this.mapUI.visible || this.encyclopedia.visible || this.debug.visible;
-    show(el('pauseOverlay'), !locked && this.mode !== 'INTRO' && !overlays && !el('helpOverlay').hidden === false && !overlays);
-    if (!locked && this.mode !== 'INTRO' && !overlays && !el('helpOverlay').hidden === false) show(el('pauseOverlay'), !overlays);
+    show(el('pauseOverlay'), !locked && this.mode !== 'INTRO' && !overlays && el('helpOverlay').hidden);
   }
 
   toggleEVA(){
     if (this.mode === 'FLIGHT' && this.ship.state === 'LANDED'){
-      this.eva.activate(this.ship.landedBody, this.ship.pos.clone().addScaledVector(_v.set(0, 1, 0).applyQuaternion(this.ship.quat), 2.5));
+      // esce di lato alla nave (non dall'alto): poi la gravità lo posa sul suolo
+      const side = new THREE.Vector3(1, 0, 0).applyQuaternion(this.ship.quat);
+      const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.ship.quat);
+      this.eva.activate(this.ship.landedBody, this.ship.pos.clone().addScaledVector(side, 3.5), fwd);
       this.mode = 'EVA';
       this.vegetation.rebuild(this.ship.landedBody, this.ship.pos);
       this.hud.milestone('eva', '◆ PRIMA USCITA — la gravità punta verso il centro del mondo, non verso il basso.');
@@ -210,7 +233,8 @@ export class Game {
     const b = this.system.get(bodyId);
     if (!b) return;
     this.ship.spawnOrbit(b, b.type === 'star' ? 6 : 3);
-    if (this.mode === 'EVA'){ this.eva.deactivate(); this.mode = 'FLIGHT'; }
+    this._camPos = null;
+    if (this.mode === 'EVA'){ this.eva.deactivate(); this.vegetation.clear(); this.mode = 'FLIGHT'; }
     this.hud.notify(`Teletrasporto: <b>${b.name}</b>`);
   }
 
@@ -236,9 +260,10 @@ export class Game {
       this.camera.lookAt(_v.set(0, 0, 0));
     } else {
       if (this.mode === 'EVA'){
-        this.eva.update(sdt, this.ship);
-        if (this.eva.o2 <= 0) this.respawn('Ossigeno esaurito. Sei stato riportato a bordo.');
-        focus = this.eva.pos;
+        this.eva.update(this.time.paused ? 0 : dt, this.ship);   // in tempo reale: col warp il pianeta corre, non l'astronauta
+        this.ship.syncLanded();                      // la nave resta ancorata al suolo che si muove
+        if (this.eva.o2 <= 0) this.rescueEVA();
+        focus = this.mode === 'EVA' ? this.eva.pos : this.ship.pos;
       } else {
         this.ship.update(sdt);
         focus = this.ship.pos;
@@ -250,6 +275,7 @@ export class Game {
     // posiziona il mondo rispetto all'origine flottante
     for (const b of this.system.bodies) this.origin.apply(b.group, b.pos);
     this.origin.apply(this.ship.mesh, this.ship.pos);
+    if (this.eva.active) this.origin.apply(this.eva.mesh, this.eva.pos);
     this.sunLight.position.copy(this.system.star.pos).sub(this.origin.offset);
     for (const b of this.system.bodies){
       if (b.atmoMesh) b.atmoMesh.material.uniforms.uSun.value.copy(this.system.star.pos).sub(b.pos).normalize();
@@ -257,7 +283,6 @@ export class Game {
       for (const pm of b.poiMeshes) if (pm.mesh.userData.pulse) pm.mesh.userData.pulse.material.emissiveIntensity = 1.6 + Math.sin(t * 3 + b.pos.x) * 1.2;
       for (const ex of b.visualExtras) ex.mat.uniforms.uTime.value = t;
     }
-    this.starfield.position.copy(this.origin.offset).multiplyScalar(0); // le stelle restano all'infinito
     if (this.belt) this.belt.update(t, this.origin.offset, focus);
 
     this.lod.update(focus, this.system.bodies, now);
@@ -273,10 +298,7 @@ export class Game {
 
   updateCamera(dt){
     if (this.mode === 'EVA'){
-      const up = _v.copy(this.eva.pos).sub(this.eva.body.pos).normalize();
-      const fwd = new THREE.Vector3(-Math.sin(this.eva.yaw), 0, -Math.cos(this.eva.yaw));
-      const right = new THREE.Vector3().crossVectors(fwd, up).normalize();
-      fwd.crossVectors(up, right).normalize();
+      const up = this.eva.up, fwd = this.eva.fwd;
       const dist = 5.5, h = 2.2 + Math.sin(this.eva.pitch) * 3;
       const camPos = this.eva.pos.clone().addScaledVector(fwd, -dist * Math.cos(this.eva.pitch)).addScaledVector(up, h);
       this.origin.apply(this.camera, camPos);
@@ -285,11 +307,12 @@ export class Game {
       this.camera.lookAt(_v.copy(tgt).sub(this.origin.offset));
       return;
     }
+    // lo smorzamento agisce sull'offset rispetto alla nave, non sulla posizione assoluta:
+    // altrimenti la telecamera "scivolerebbe" dietro alla velocità orbitale del pianeta
     const back = new THREE.Vector3(0, 2.2, 9).applyQuaternion(this.ship.quat);
-    const desired = this.ship.pos.clone().add(back);
-    if (!this._camPos) this._camPos = desired.clone();
-    this._camPos.lerp(desired, damp(dt, this.ship.state === 'LANDED' ? 3 : 7));
-    this.origin.apply(this.camera, this._camPos);
+    if (!this._camPos) this._camPos = back.clone();
+    this._camPos.lerp(back, damp(dt, this.ship.state === 'LANDED' ? 3 : 7));
+    this.origin.apply(this.camera, _v.copy(this.ship.pos).add(this._camPos));
     this.camera.up.lerp(_v.set(0, 1, 0).applyQuaternion(this.ship.quat), 0.06).normalize();
     const ahead = this.ship.pos.clone().addScaledVector(new THREE.Vector3(0, 0, -8).applyQuaternion(this.ship.quat), 1);
     this.camera.lookAt(_v.copy(ahead).sub(this.origin.offset));
@@ -314,17 +337,19 @@ export class Game {
     this.camera.getWorldDirection(_look);
     const focus = this.mode === 'EVA' ? this.eva.pos : this.ship.pos;
     const scanning = this.input.down('KeyF') && this.input.locked;
-    this.bus.meta.scanning = scanning;
     this.discovery.update(dt, focus, _look, scanning);
+    // F scansiona solo se c'è un bersaglio inquadrato; altrimenti resta il propulsore verticale
+    this.bus.meta.scanning = scanning && !!this.discovery.aimed;
   }
 
   updatePOIs(focus){
+    if (this.mode === 'INTRO') return;   // la camera d'intro è centrata sul pianeta: scoprirebbe tutto subito
     for (const b of this.system.bodies){
       for (const pm of b.poiMeshes){
         const key = 'poi:' + b.id + ':' + pm.poi.name;
         if (this.discovery.has(key)) continue;
-        const wp = pm.mesh.getWorldPosition(_v);
-        if (focus.distanceTo(wp) < 30){
+        const wp = pm.mesh.getWorldPosition(_v).add(this.origin.offset);   // mondo → coordinate assolute
+        if (focus.distanceTo(wp) < 12){      // i pianeti hanno raggio ~3–7: 30 li scopriva tutti da qualunque punto
           this.discovery.discover(key);
           this.hud.notify(`◆ Punto di interesse: <b>${pm.poi.name}</b> — ${pm.poi.text || 'registrazione recuperata nell\u2019archivio.'}`, 'gold');
           this.audio.chime();
@@ -350,7 +375,7 @@ export class Game {
     }
 
     const alt = this.mode === 'EVA'
-      ? this.eva.pos.distanceTo(this.eva.body.pos) - this.eva.body.surfaceRadiusAt(_v.copy(this.eva.pos).sub(this.eva.body.pos).normalize().applyQuaternion(this.eva.body.spinGroup.quaternion.clone().invert()))
+      ? this.eva.pos.distanceTo(this.eva.body.pos) - this.eva.body.surfaceRadiusAtWorldDir(this.eva.up)
       : this.ship.groundAlt;
 
     const crush = this.domBody?.type === 'gas' && this.ship.pos.distanceTo(this.domBody.pos) < this.domBody.radius * 1.4;

@@ -1,12 +1,20 @@
 import * as THREE from 'three';
+import { clamp } from '../core/Util.js';
 
-const TIER_DETAIL = [2, 4, 6];
+// Il tier vicino deve essere abbastanza fitto da seguire il terreno analitico
+// su cui camminano nave ed astronauta (altrimenti i piedi affondano/fluttuano).
+const TIER_DETAIL = [3, 6, 16];
 const _dir = new THREE.Vector3();
-const _c = new THREE.Color();
+const _c = new THREE.Color(), _c2 = new THREE.Color();
 
 function paletteFor(def){
-  const t = def.temperature.surface;
   const P = { sand: 0xc9a86a, rock: 0x8a7f72, grass: 0x4f8f4a, deep: 0x1d4d63, snow: 0xe8f2f8, ice: 0xcfe4f2, basalt: 0x3a3236, rust: 0xa65b3a, metal: 0x7d8a99 };
+  // deep/sand servono a ogni palette (fondali oceanici): senza, setHex(undefined) produceva colori NaN
+  return { deep: P.deep, sand: P.sand, ...pickPalette(def, P) };
+}
+
+function pickPalette(def, P){
+  const t = def.temperature.surface;
   if (def.type === 'volcanic') return { low: P.basalt, mid: P.basalt, high: P.rock, special: 0xff5a26 };
   if (def.type === 'desert') return { low: P.sand, mid: 0xb08a52, high: P.rock };
   if (def.type === 'ice') return { low: P.ice, mid: P.snow, high: 0xffffff };
@@ -57,11 +65,11 @@ export class PlanetSurface {
     const s = this.def.surface, P = this.palette;
     const lat = Math.abs(dir.y);
     let c = _c;
-    if (s.ocean && h < s.sea + s.amp * 0.03) c.setHex(P.deep).lerp(new THREE.Color(P.sand ?? 0xc9a86a), Math.max(0, (h - s.sea + s.amp * 0.06) / (s.amp * 0.09)));
+    if (s.ocean && h < s.sea + s.amp * 0.03) c.setHex(P.deep).lerp(_c2.setHex(P.sand), clamp((h - s.sea + s.amp * 0.06) / (s.amp * 0.09), 0, 1));
     else if (h < s.amp * 0.18) c.setHex(P.low);
     else if (h < s.amp * 0.42) c.setHex(P.mid ?? P.low);
     else c.setHex(P.high ?? P.mid ?? P.low);
-    if (P.snow && (lat > 0.82 || h > s.amp * 0.55) && this.def.temperature.surface < 300) c.lerp(new THREE.Color(P.snow), 0.85);
+    if (P.snow && (lat > 0.82 || h > s.amp * 0.55) && this.def.temperature.surface < 300) c.lerp(_c2.setHex(P.snow), 0.85);
     if (this.def.type === 'volcanic' && h < -s.amp * 0.2) c.setHex(P.special);
     const v = 0.9 + 0.2 * ((Math.sin(dir.x * 40) + Math.sin(dir.z * 37)) % 1) * 0.5; // variazione deterministica
     colors[i * 3] = c.r * v; colors[i * 3 + 1] = c.g * v; colors[i * 3 + 2] = c.b * v;

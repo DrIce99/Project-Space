@@ -12,8 +12,9 @@ export function computeHabitability(def){
   const water = def.surface.ocean ? 1 : (def.type === 'ice' ? 0.25 : 0);
   const o2 = smoothstep(0.05, 0.21, at.composition.O2 ?? 0) * (1 - smoothstep(0.3, 0.4, at.composition.O2 ?? 0));
   const tox = 1 - at.toxicity;
-  const rad = clamp((def.orbit.a / (340 * Math.sqrt(def._lum))), 0, 1) * (def.orbit.a < 140 ? 0.2 : 1);
-  const light = clamp(1.4 - def.orbit.a / 2400, 0.15, 1);
+  const a = def.starDist ?? def.orbit.a;   // per le lune conta la distanza dalla stella, non dal pianeta
+  const rad = clamp((a / (340 * Math.sqrt(def._lum))), 0, 1) * (a < 140 ? 0.2 : 1);
+  const light = clamp(1.4 - a / 2400, 0.15, 1);
   const stab = clamp(1 - def.orbit.e * 4, 0, 1);
   const W = HAB_WEIGHTS;
   return Math.round(100 * (W.temp * t + W.pressure * p + W.water * water + W.oxygen * o2 + W.toxicity * tox + W.radiation * rad + W.light * light + W.stability * stab));

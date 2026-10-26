@@ -31,7 +31,7 @@ function genStar(rng){
     id: 'star', name: genName(rng) + ' ' + cls, type: 'star', class: cls,
     tempK: conf[0], lum: conf[1] * rng.range(0.85, 1.2), color: conf[2],
     radius: rng.range(46, 78) * (cls === 'M' ? 0.6 : cls === 'F' ? 1.15 : 1),
-    mass: rng.range(SCALE.STAR_MASS_MIN, SCALE.STAR_STar_MASS_MAX ?? SCALE.STAR_MASS_MAX),
+    mass: rng.range(SCALE.STAR_MASS_MIN, SCALE.STAR_MASS_MAX),
   };
 }
 
@@ -91,7 +91,9 @@ function genPOIs(rng, bodyDef, echoIdx){
   return pois;
 }
 
-function genBody(rng, star, parentDef, a, type, idx){
+// `a` = semiasse attorno al genitore; `starDist` = distanza dalla stella (per le lune
+// è quella del pianeta: temperatura e luce dipendono da lì, non dall'orbita lunare).
+function genBody(rng, star, parentDef, a, type, idx, starDist = a){
   const conf = TYPE_CONF[type];
   const radius = rng.range(conf.r[0], conf.r[1]);
   const gravity = rng.range(conf.g[0], conf.g[1]);
@@ -107,9 +109,9 @@ function genBody(rng, star, parentDef, a, type, idx){
     ? { period: orbit.period, tilt: rng.range(0, 0.3), retro: false, locked: true }
     : { period: rng.range(14, 90) * (type === 'gas' ? 0.35 : 1), tilt: rng.range(0, 0.6), retro: rng.chance(0.1), locked: false };
 
-  const Teq = 278 * Math.pow(star.lum, 0.25) * Math.sqrt(400 / a);
+  const Teq = 278 * Math.pow(star.lum, 0.25) * Math.sqrt(400 / starDist);
   const isGas = type === 'gas';
-  let atmosphere = isGas ? genAtmosphere(rng, type, Teq) : genAtmosphere(rng, type, Teq);
+  const atmosphere = genAtmosphere(rng, type, Teq);
   const surfaceTemp = Teq + atmosphere.greenhouse;
 
   const amp = radius * rng.range(0.02, 0.05) * (isGas ? 0 : 1);
@@ -133,7 +135,7 @@ function genBody(rng, star, parentDef, a, type, idx){
       fog: Math.round(100 * Math.min(1, (atmosphere.composition.H2O ?? 0) * 8 * (ocean ? 1 : 0.3))),
       precipitation: ocean && surfaceTemp > 245 && surfaceTemp < 330 ? 'pioggia' : surfaceTemp < 245 && atmosphere.pressure > 0.2 ? 'neve' : '—',
     },
-    _lum: star.lum,
+    _lum: star.lum, starDist,
     biosphere: null, pois: [], moons: [],
   };
   def.habitability = computeHabitability(def);
@@ -167,9 +169,14 @@ export function generateSystem(seed){
     const nMoons = def.type === 'gas' ? rng.int(2, 4) : def.type === 'dwarf' ? rng.int(0, 1) : rng.int(0, 2);
     for (let m = 0; m < nMoons; m++){
       const mType = def.temperature.surface < 200 ? 'ice' : 'rocky';
-      const moon = genBody(rng, star, def, def.radius * rng.range(5, 22), mType, i * 8 + m);
+      const moon = genBody(rng, star, def, def.radius * rng.range(5, 22), mType, i * 8 + m, a);
+      const oldR = moon.radius;
       moon.radius = Math.min(moon.radius, def.radius * rng.range(0.14, 0.3));
       moon.mass = moon.gravity * moon.radius * moon.radius;
+      // il rilievo era dimensionato sul raggio originale: va riscalato, altrimenti
+      // una luna minuscola avrebbe montagne grandi quanto lei
+      const k = moon.radius / oldR;
+      moon.surface.amp *= k; moon.surface.sea *= k; moon.surface.rough *= k;
       moon.orbit.period = periodFrom(moon.orbit.a, def.mass);
       moon.name = def.name + ' ' + ROMAN[m];
       moon.id = def.id + '_m' + m;
@@ -184,7 +191,10 @@ export function generateSystem(seed){
 
   // Garanzia di qualità del seed: almeno un mondo interessante nella fascia abitabile.
   if (!planets.some(p => p.habitability >= 45)){
-    const best = planets.reduce((c, p) => Math.abs(p.orbit.a - (hz[0] + hz[1]) / 2) < Math.abs(c.orbit.a - (hz[0] + hz[1]) / 2) ? p : c);
+    // solo corpi solidi: trasformare un gigante gassoso in "terran" lo lasciava senza superficie
+    const cand = planets.filter(p => p.surface.hasSurface);
+    const mid = (hz[0] + hz[1]) / 2;
+    const best = (cand.length ? cand : planets).reduce((c, p) => Math.abs(p.orbit.a - mid) < Math.abs(c.orbit.a - mid) ? p : c);
     best.type = 'terran'; best.atmosphere = genAtmosphere(rng, 'terran', best.temperature.equilibrium);
     best.temperature.surface = Math.round(best.temperature.equilibrium + best.atmosphere.greenhouse);
     best.surface.ocean = true;

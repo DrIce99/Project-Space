@@ -20,7 +20,7 @@ export class MapUI {
     this.canvas.addEventListener('click', e => this.click(e));
   }
 
-  toggle(){ this.visible = !this.visible; show(el('mapOverlay'), this.visible); if (this.visible) this.render(); }
+  toggle(){ this.visible = !this.visible; show(el('mapOverlay'), this.visible); if (this.visible){ this.render(); this.renderInfo(); } }
   close(){ this.visible = false; show(el('mapOverlay'), false); }
 
   project(p){
@@ -48,14 +48,15 @@ export class MapUI {
     if (!b){ this.info.innerHTML = '<p class="dim">Seleziona un corpo sulla mappa.</p>'; return; }
     const known = g.discovery.has(b.id);
     const kv = (k, v) => `<div class="kv"><span>${k}</span><b>${v}</b></div>`;
+    const d = b.def, ND = 'N/D';   // la stella non ha gravità/orbita/vivibilità
     this.info.innerHTML = `
       <h3>${known ? b.name : '???'}</h3>
       ${kv('Tipo', known ? b.type.toUpperCase() : '???')}
       ${kv('Raggio', known ? fmt(b.radius * 50) + ' km' : '???')}
-      ${kv('Gravità sup.', known ? b.def.gravity.toFixed(1) + ' m/s²' : '???')}
-      ${kv('Periodo orbitale', known ? fmtDuration(b.def.orbit.period) : '???')}
-      ${kv('Eccentricità', known ? b.def.orbit.e.toFixed(3) : '???')}
-      ${kv('Vivibilità', known ? b.def.habitability + '/100' : '???')}
+      ${kv('Gravità sup.', known ? (d.gravity != null ? d.gravity.toFixed(1) + ' m/s²' : ND) : '???')}
+      ${kv('Periodo orbitale', known ? (d.orbit ? fmtDuration(d.orbit.period) : ND) : '???')}
+      ${kv('Eccentricità', known ? (d.orbit ? d.orbit.e.toFixed(3) : ND) : '???')}
+      ${kv('Vivibilità', known ? (d.habitability != null ? d.habitability + '/100' : ND) : '???')}
       <div class="btns" style="margin-top:12px;display:flex;gap:8px">
         <button class="btn ghost" id="btnNav">IMPOSTA ROTTA</button>
         ${known ? '' : '<span class="dim" style="font-size:10px">Scansiona da vicino [F] per i dati</span>'}
@@ -67,7 +68,8 @@ export class MapUI {
     if (!this.visible) return;
     const g = this.game, c = this.canvas, ctx = this.ctx2d;
     const r = c.getBoundingClientRect();
-    if (c.width !== r.width * devicePixelRatio){ c.width = r.width * devicePixelRatio; c.height = r.height * devicePixelRatio; }
+    const w = Math.round(r.width * devicePixelRatio), h = Math.round(r.height * devicePixelRatio);
+    if (c.width !== w || c.height !== h){ c.width = w; c.height = h; }
     ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
     ctx.clearRect(0, 0, r.width, r.height);
 

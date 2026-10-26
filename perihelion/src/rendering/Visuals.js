@@ -4,8 +4,8 @@ import { makeAtmosphere } from './AtmosphereMesh.js';
 import { sampleOrbitPath } from '../physics/Kepler.js';
 import { POI_TYPES } from '../generation/LoreGen.js';
 
-function canvasTexture(size, draw){
-  const c = document.createElement('canvas'); c.width = c.width = size; c.height = size / 2;
+function canvasTexture(size, draw, height = size / 2){
+  const c = document.createElement('canvas'); c.width = size; c.height = height;
   draw(c.getContext('2d'), c.width, c.height);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
@@ -16,7 +16,7 @@ function glowSprite(color, scale, opacity = 1){
     const col = '#' + new THREE.Color(color).getHexString();
     g.addColorStop(0, col); g.addColorStop(0.35, col + 'aa'); g.addColorStop(1, 'transparent');
     ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
-  });
+  }, 128);   // quadrata: con 128×64 il gradiente radiale veniva tagliato in alto/basso
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
   s.scale.setScalar(scale);
   return s;

@@ -4,6 +4,8 @@ import { fbm3, ridge3 } from '../generation/Noise3D.js';
 
 const _rel = new THREE.Vector3();
 const _relV = new THREE.Vector3();
+const _loc = new THREE.Vector3();
+const _axis = new THREE.Vector3();
 
 export class CelestialBody {
   constructor(def, parent = null){
@@ -21,6 +23,10 @@ export class CelestialBody {
       this.tiltGroup.quaternion.setFromEuler(new THREE.Euler(0, 0, def.rotation.tilt));
       this._spinDir = def.rotation.retro ? -1 : 1;
     }
+    // rotazione mondo del frame di superficie = tilt · spin (la geometria visibile
+    // sta sotto tiltGroup → spinGroup, quindi la fisica deve usare la stessa)
+    this.rot = new THREE.Quaternion(); this.rotInv = new THREE.Quaternion();
+    this.updateRotation();
     this.surface = null;      // assegnato da PlanetSurface
     this.atmoMesh = null; this.cloudMesh = null; this.poiMeshes = [];
     this.visualExtras = [];
@@ -35,11 +41,31 @@ export class CelestialBody {
     if (this.def.rotation){
       const r = this.def.rotation;
       this.spinAngle = r.locked && this.parent
-        ? -(Math.PI * 2 * this.def.orbit.M0 / (Math.PI * 2)) // fase bloccata gestita sotto
+        ? ((this.def.orbit.M0 + (Math.PI * 2 * t) / r.period) % (Math.PI * 2)) + Math.PI // rotazione sincrona
         : (t / r.period) * Math.PI * 2 * this._spinDir;
-      if (r.locked) this.spinAngle = ((this.def.orbit.M0 + (Math.PI * 2 * t) / r.period) % (Math.PI * 2)) + Math.PI;
       this.spinGroup.rotation.y = this.spinAngle;
+      this.updateRotation();
     }
+  }
+
+  updateRotation(){
+    this.rot.copy(this.tiltGroup.quaternion).multiply(this.spinGroup.quaternion);
+    this.rotInv.copy(this.rot).invert();
+  }
+
+  // Direzione mondo → direzione nel frame di superficie (quello del terreno).
+  toLocalDir(dirWorld, out){ return out.copy(dirWorld).applyQuaternion(this.rotInv); }
+  toWorldDir(dirLocal, out){ return out.copy(dirLocal).applyQuaternion(this.rot); }
+  surfaceRadiusAtWorldDir(dirWorld){ return this.surfaceRadiusAt(this.toLocalDir(dirWorld, _loc)); }
+
+  // Velocità (mondo) del suolo sotto a un punto: moto orbitale + rotazione propria.
+  surfaceVelocityAt(worldPos, out){
+    const r = this.def.rotation;
+    if (!r) return out.copy(this.vel);
+    const w = (Math.PI * 2 / r.period) * (r.retro ? -1 : 1);
+    _axis.set(0, 1, 0).applyQuaternion(this.tiltGroup.quaternion);
+    _loc.copy(worldPos).sub(this.pos);
+    return out.copy(_axis).cross(_loc).multiplyScalar(w).add(this.vel);
   }
 
   // Altezza del terreno lungo una direzione LOCALE (frame di spin).

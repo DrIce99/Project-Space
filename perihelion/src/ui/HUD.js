@@ -13,7 +13,6 @@ export class HUD {
     };
     this.notes = [];
     this.milestones = new Set();
-    bus.on('discovery', d => this.notify(`◆ Scoperta registrata: <b>${d.name ?? d.id}</b>`, 'gold'));
   }
 
   setVisible(on){ show(this.e.hud, on); show(this.e.reticle, on); }

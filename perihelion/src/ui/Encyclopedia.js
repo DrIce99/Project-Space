@@ -22,7 +22,7 @@ export class Encyclopedia {
         };
         el('encList').innerHTML =
             item(g.system.star) +
-            g.system.planets.map(p => item(p) + p.moons?.map(m => { const mb = g.system.get(m.id); return mb ? item(mb) : ''; }).join('')).join('');
+            g.system.planets.map(p => item(p) + (p.def.moons ?? []).map(m => { const mb = g.system.get(m.id); return mb ? item(mb) : ''; }).join('')).join('');
         el('encList').querySelectorAll('.encItem').forEach(n => n.onclick = () => { this.selected = n.dataset.id; this.renderList(); this.renderDetail(); });
     }
 

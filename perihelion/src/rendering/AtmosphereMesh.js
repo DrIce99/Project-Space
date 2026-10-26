@@ -15,7 +15,12 @@ varying vec3 vW; varying vec3 vN;
 void main(){
   vec3 V = normalize(vW - cameraPosition);
   float d = dot(V, normalize(vN));
-  float glow = pow(clamp(d, 0.0, 1.0), 5.0) * 1.6;
+  // faccia posteriore della sfera: s = distanza del raggio dal centro / raggio alone.
+  // Vale 1/1.12 al bordo del pianeta e 1 al bordo dell'alone → bagliore massimo
+  // sul lembo planetario che svanisce verso lo spazio.
+  float s = sqrt(max(0.0, 1.0 - d * d));
+  float k = clamp((1.0 - s) / (1.0 - 0.8929), 0.0, 1.0);
+  float glow = pow(k, 2.0) * 1.6;
   float day = clamp(dot(normalize(vN), uSun) * 1.6 + 0.55, 0.06, 1.25);
   gl_FragColor = vec4(uColor * day, glow * uIntensity * day);
 }`;

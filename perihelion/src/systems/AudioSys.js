@@ -5,6 +5,7 @@ export class AudioSys {
     const C = window.AudioContext || window.webkitAudioContext;
     if (!C) return;
     this.ctx = new C();
+    this.ctx.resume?.();
     this.master = this.ctx.createGain(); this.master.gain.value = 0.5; this.master.connect(this.ctx.destination);
     // pad ambientale
     const pad = this.ctx.createGain(); pad.gain.value = 0.05; pad.connect(this.master);
@@ -30,5 +31,9 @@ export class AudioSys {
     o.connect(g).connect(this.master); o.start(); o.stop(this.ctx.currentTime + dur);
   }
   chime(){ this.blip(660, 0.12); setTimeout(() => this.blip(990, 0.22), 110); }
-  toggle(){ this.muted = !this.muted; return this.muted; }
+  toggle(){
+    this.muted = !this.muted;
+    if (this.master) this.master.gain.value = this.muted ? 0 : 0.5;   // zittisce anche il pad ambientale
+    return this.muted;
+  }
 }

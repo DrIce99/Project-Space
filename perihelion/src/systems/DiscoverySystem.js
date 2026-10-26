@@ -4,6 +4,7 @@ export class DiscoverySystem {
     this.system = system; this.bus = bus;
     this.discovered = new Set([system.star.id]);
     this.scanTarget = null; this.progress = 0;
+    this.aimed = null;               // corpo non ancora scoperto attualmente inquadrato
     this.load();
   }
   key(){ return 'ph_save_' + this.system.seed; }
@@ -25,7 +26,7 @@ export class DiscoverySystem {
 
   // Tiene premuto F mirando un corpo: la portata cresce col raggio del corpo.
   update(dt, focusPos, lookDir, scanning){
-    let best = null, bestScore = 0;
+    let best = null, bestScore = 0, bestDist = 0;
     for (const b of this.system.bodies){
       if (this.has(b.id)) continue;
       const to = b.pos.clone().sub(focusPos);
@@ -33,11 +34,12 @@ export class DiscoverySystem {
       if (dist > b.radius * 35 + 60) continue;
       const ang = to.normalize().dot(lookDir);
       const need = Math.cos(Math.asin(Math.min(1, (b.radius * 1.6) / dist)));
-      if (ang > need && ang > bestScore){ bestScore = ang; best = b; }
+      if (ang > need && ang > bestScore){ bestScore = ang; best = b; bestDist = dist; }
     }
-    if (!scanning || !best){ this.scanTarget = best && scanning ? best : null; this.progress = best ? this.progress : 0; if (!best) this.progress = 0; return; }
+    this.aimed = best;
+    if (!scanning || !best){ this.scanTarget = null; this.progress = 0; return; }
     if (this.scanTarget !== best){ this.scanTarget = best; this.progress = 0; }
-    this.progress += dt / Math.min(3, Math.max(0.8, dist / (best.radius * 12)));
+    this.progress += dt / Math.min(3, Math.max(0.8, bestDist / (best.radius * 12)));
     if (this.progress >= 1){ this.discover(best.id); this.progress = 0; this.scanTarget = null; }
   }
 }

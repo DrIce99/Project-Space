@@ -17,8 +17,8 @@ export class VegetationSystem {
     const rng = new RNG(body.def.seed ^ 0xBEEF);
     const N = Math.floor(20 + (body.def.habitability - 25) * 3.2);
     const group = new THREE.Group();
-    const local = body.spinGroup.worldToLocal ? null : null;
-    const toLocal = w => w.clone().sub(body.pos).applyQuaternion(body.spinGroup.quaternion.clone().invert());
+    // tutto si calcola nel frame di superficie (tilt·spin): la vegetazione è figlia di spinGroup
+    const center = body.toLocalDir(_t1.copy(worldPos).sub(body.pos).normalize(), new THREE.Vector3());
 
     const cold = body.def.temperature.surface < 250;
     const types = cold
@@ -27,11 +27,10 @@ export class VegetationSystem {
     const meshes = types.map(t => new THREE.InstancedMesh(t.geo, new THREE.MeshLambertMaterial({ color: t.col, flatShading: true }), N));
     const counts = types.map(() => 0);
 
-    _t1.set(worldPos.x, worldPos.y, worldPos.z).normalize(); // centro su sfera
     for (let i = 0; i < N; i++){
       _t2.set(rng.range(-1, 1), rng.range(-1, 1), rng.range(-1, 1)).normalize();
-      _d.copy(worldPos).sub(body.pos).normalize().addScaledVector(_t2, rng.range(0.05, 0.6)).normalize();
-      const h = body.surfaceRadiusAt(_d.clone().applyQuaternion(body.spinGroup.quaternion.clone().invert()));
+      _d.copy(center).addScaledVector(_t2, rng.range(0.05, 0.6)).normalize();
+      const h = body.surfaceRadiusAt(_d);
       if (body.def.surface.ocean && h < body.radius + body.def.surface.sea) continue;
       const ti = rng.int(0, types.length - 1);
       if (counts[ti] >= N) continue;
@@ -52,10 +51,10 @@ export class VegetationSystem {
   spawnPlankton(body, worldPos){
     const n = 140, pos = new Float32Array(n * 3);
     const rng = new RNG(body.def.seed ^ 0xA11);
-    const c = worldPos.clone().sub(body.pos).normalize();
+    const c = body.toLocalDir(_t1.copy(worldPos).sub(body.pos).normalize(), new THREE.Vector3());
     for (let i = 0; i < n; i++){
-      _d.copy(c).addScaledVector(_t1.set(rng.range(-1, 1), rng.range(-1, 1), rng.range(-1, 1)).normalize(), rng.range(0.05, 0.5)).normalize();
-      _p.copy(_d).multiplyScalar(body.surfaceRadiusAt(_d.clone().applyQuaternion(body.spinGroup.quaternion.clone().invert())) + rng.range(1, 14));
+      _d.copy(c).addScaledVector(_t2.set(rng.range(-1, 1), rng.range(-1, 1), rng.range(-1, 1)).normalize(), rng.range(0.05, 0.5)).normalize();
+      _p.copy(_d).multiplyScalar(body.surfaceRadiusAt(_d) + rng.range(1, 14));
       pos.set([_p.x, _p.y, _p.z], i * 3);
     }
     const geo = new THREE.BufferGeometry();
